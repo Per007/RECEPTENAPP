@@ -1,24 +1,24 @@
 <script lang="ts">
   interface Props {
-    variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
-    size?: 'sm' | 'md' | 'lg';
+    variant?: "primary" | "secondary" | "danger" | "ghost";
+    size?: "sm" | "md" | "lg";
     disabled?: boolean;
     fullWidth?: boolean;
-    type?: 'button' | 'submit' | 'reset';
+    type?: "button" | "submit" | "reset";
     ariaLabel?: string;
     onclick?: () => void;
-    children?: import('svelte').Snippet;
+    children?: import("svelte").Snippet;
   }
 
-  let { 
-    variant = 'primary', 
-    size = 'md', 
+  let {
+    variant = "primary",
+    size = "md",
     disabled = false,
     fullWidth = false,
-    type = 'button',
+    type = "button",
     ariaLabel,
     onclick,
-    children
+    children,
   }: Props = $props();
 </script>
 
@@ -28,7 +28,7 @@
   class:btn-full={fullWidth}
   {disabled}
   aria-label={ariaLabel}
-  onclick={onclick}
+  {onclick}
 >
   {#if children}
     {@render children()}
@@ -48,7 +48,7 @@
     cursor: pointer;
     transition: all var(--transition-fast);
     text-decoration: none;
-    white-space: nowrap;
+    text-align: center;
   }
 
   .btn:disabled {
@@ -107,7 +107,7 @@
   }
 
   .btn-danger:hover:not(:disabled) {
-    background-color: #B71C1C;
+    background-color: #b71c1c;
   }
 
   .btn-ghost {
