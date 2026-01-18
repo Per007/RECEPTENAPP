@@ -13,6 +13,7 @@
   --color-bg: #FAFAFA;
   --color-bg-card: #FFFFFF;
   --color-bg-hover: #F5F5F5;
+  --bg-image: linear-gradient(135deg, #FAFAFA 0%, #F1F8E9 100%);
 
   /* Text - High contrast for readability */
   --color-text: #212121;
@@ -153,6 +154,7 @@
     --color-primary-light: #81C784;
     --color-primary-dark: #2E7D32;
     --color-border-focus: #4CAF50;
+    --bg-image: none;
   }
 }
 
@@ -170,4 +172,5 @@
   --color-primary-light: #81C784;
   --color-primary-dark: #2E7D32;
   --color-border-focus: #4CAF50;
+  --bg-image: none;
 }

@@ -28,6 +28,8 @@ body {
     line-height: var(--line-height-normal);
     color: var(--color-text);
     background-color: var(--color-bg);
+    background-image: var(--bg-image);
+    background-attachment: fixed;
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

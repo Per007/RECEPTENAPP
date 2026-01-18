@@ -5,6 +5,7 @@
   import { onMount } from "svelte";
   import {
     getRecipe,
+    addRecipe,
     updateRecipe,
     deleteRecipe as dbDeleteRecipe,
   } from "$lib/db/database";
@@ -20,12 +21,39 @@
   let isLoading = $state(true);
   let showDeleteConfirm = $state(false);
   let isDeleting = $state(false);
+  let isSharedPreview = $state(false);
+  let isSaving = $state(false);
 
   const recipeId = $page.params.id ?? "";
 
   onMount(async () => {
     try {
-      recipe = await getRecipe(recipeId);
+      if (recipeId === "shared") {
+        // Handle shared recipe link
+        const data = $page.url.searchParams.get("data");
+        if (data) {
+          try {
+            const sharedRecipe = JSON.parse(decodeURIComponent(data));
+            // Ensure basic structural validity
+            if (sharedRecipe.title && sharedRecipe.category) {
+              recipe = {
+                ...sharedRecipe,
+                id: "shared-preview", // Temporary ID
+                isFavorite: false, // Reset favorite status
+                photos: [], // No photos in shared links
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              } as Recipe;
+              isSharedPreview = true;
+            }
+          } catch (e) {
+            console.error("Error parsing shared recipe:", e);
+          }
+        }
+      } else {
+        // Normal recipe loading
+        recipe = await getRecipe(recipeId);
+      }
     } catch (error) {
       console.error("Error loading recipe:", error);
     } finally {
@@ -33,16 +61,18 @@
     }
   });
 
-  // Update recipe when favorites toggle
+  // Update recipe when favorites toggle (only for non-shared)
   $effect(() => {
-    const updated = $recipes.find((r) => r.id === recipeId);
-    if (updated) {
-      recipe = updated;
+    if (!isSharedPreview && recipeId !== "shared") {
+      const updated = $recipes.find((r) => r.id === recipeId);
+      if (updated) {
+        recipe = updated;
+      }
     }
   });
 
   async function handleToggleFavorite() {
-    if (recipe) {
+    if (recipe && !isSharedPreview) {
       await toggleFavorite(recipe.id);
     }
   }
@@ -50,29 +80,47 @@
   async function shareViaWhatsApp() {
     if (!recipe) return;
 
+    // Create a shareable object (exclude heavy items like photos)
+    const shareObject = {
+      title: recipe.title,
+      category: recipe.category,
+      ingredients: recipe.ingredients,
+      instructions: recipe.instructions,
+      servings: recipe.servings,
+      cookTime: recipe.cookTime,
+      notes: recipe.notes,
+      sourceUrl: recipe.sourceUrl,
+    };
+
+    // Serialize and encode
+    const payload = encodeURIComponent(JSON.stringify(shareObject));
+    // Construct the share link (pointing to /recepten/shared)
+    // We use window.location.origin + base to ensure full URL
+    const shareUrl = `${window.location.origin}${base}/recepten/shared?data=${payload}`;
+
     // Try native share first (better support for links on mobile)
     if (navigator.share) {
       try {
         await navigator.share({
           title: recipe.title,
           text: `Bekijk dit recept: ${recipe.title}`,
-          url: window.location.href,
+          url: shareUrl,
         });
         return;
       } catch (err) {
-        // Continue to fallback if user cancelled or error
+        // Continue to fallback
       }
     }
 
     // Fallback for desktop or if share API fails
     const text = encodeURIComponent(
-      `Bekijk dit recept: ${recipe.title} - ${window.location.href}`,
+      `Bekijk dit recept: ${recipe.title} - ${shareUrl}`,
     );
     window.open(`https://wa.me/?text=${text}`, "_blank");
   }
 
   async function handleDelete() {
-    if (!recipe) return;
+    if (!recipe || isSharedPreview) return;
 
     isDeleting = true;
     try {
@@ -84,6 +132,39 @@
     } finally {
       isDeleting = false;
       showDeleteConfirm = false;
+    }
+  }
+
+  async function handleSaveShared() {
+    if (!recipe || !isSharedPreview) return;
+
+    isSaving = true;
+    try {
+      // Add the recipe to the database
+      // The addRecipe function handles ID generation
+      const savedRecipe = await addRecipe({
+        title: recipe.title,
+        category: recipe.category,
+        ingredients: recipe.ingredients,
+        instructions: recipe.instructions,
+        photos: [], // Emtpy photos
+        sourceUrl: recipe.sourceUrl,
+        isFavorite: false,
+        servings: recipe.servings,
+        cookTime: recipe.cookTime,
+        notes: recipe.notes,
+      });
+
+      // Update the local recipes store to reflect the change immediately if needed
+      // (The store should auto-update if it listens to DB, but let's be safe via navigation)
+
+      // Redirect to the newly created recipe
+      goto(`${base}/recepten/${savedRecipe.id}`);
+    } catch (error) {
+      console.error("Error saving shared recipe:", error);
+      alert("Er ging iets mis bij het opslaan.");
+    } finally {
+      isSaving = false;
     }
   }
 
@@ -113,20 +194,32 @@
     {#if recipe.photos && recipe.photos.length > 0}
       <div class="hero-image">
         <img src={recipe.photos[0]} alt={recipe.title} />
-        <button
-          class="favorite-btn"
-          class:is-favorite={recipe.isFavorite}
-          onclick={handleToggleFavorite}
-          aria-label={recipe.isFavorite
-            ? "Verwijder uit favorieten"
-            : "Voeg toe aan favorieten"}
-        >
-          {recipe.isFavorite ? "★" : "☆"}
-        </button>
+        {#if !isSharedPreview}
+          <button
+            class="favorite-btn"
+            class:is-favorite={recipe.isFavorite}
+            onclick={handleToggleFavorite}
+            aria-label={recipe.isFavorite
+              ? "Verwijder uit favorieten"
+              : "Voeg toe aan favorieten"}
+          >
+            {recipe.isFavorite ? "★" : "☆"}
+          </button>
+        {/if}
       </div>
     {/if}
 
     <div class="content container">
+      {#if isSharedPreview}
+        <div class="shared-banner">
+          <span class="icon">👋</span>
+          <div class="text">
+            <strong>Gedeeld recept</strong>
+            <p>Dit is een voorbeeld. Sla het op om het te bewaren.</p>
+          </div>
+        </div>
+      {/if}
+
       <header class="recipe-header">
         <div class="category-badge">
           {getCategoryIcon(recipe.category)}
@@ -147,7 +240,7 @@
         {/if}
       </header>
 
-      {#if !recipe.photos?.length}
+      {#if !recipe.photos?.length && !isSharedPreview}
         <button
           class="favorite-btn-inline"
           class:is-favorite={recipe.isFavorite}
@@ -218,18 +311,31 @@
       {/if}
 
       <div class="actions">
-        <Button variant="secondary" onclick={shareViaWhatsApp}>
-          💬 Delen via WhatsApp
-        </Button>
-        <Button
-          variant="secondary"
-          onclick={() => goto(`${base}/recepten/${recipe?.id}/bewerken`)}
-        >
-          ✏️ Bewerken
-        </Button>
-        <Button variant="danger" onclick={() => (showDeleteConfirm = true)}>
-          🗑️ Verwijderen
-        </Button>
+        {#if isSharedPreview}
+          <Button
+            variant="primary"
+            onclick={handleSaveShared}
+            disabled={isSaving}
+          >
+            {isSaving ? "⏳ Opslaan..." : "💾 Opslaan in mijn recepten"}
+          </Button>
+          <Button variant="secondary" onclick={() => goto(`${base}/recepten`)}>
+            Annuleren
+          </Button>
+        {:else}
+          <Button variant="secondary" onclick={shareViaWhatsApp}>
+            💬 Delen via WhatsApp
+          </Button>
+          <Button
+            variant="secondary"
+            onclick={() => goto(`${base}/recepten/${recipe?.id}/bewerken`)}
+          >
+            ✏️ Bewerken
+          </Button>
+          <Button variant="danger" onclick={() => (showDeleteConfirm = true)}>
+            🗑️ Verwijderen
+          </Button>
+        {/if}
       </div>
     </div>
 
@@ -272,6 +378,28 @@
 <style>
   .page {
     padding-bottom: var(--space-2xl);
+  }
+
+  .shared-banner {
+    background: #e3f2fd;
+    color: #0d47a1;
+    padding: var(--space-md);
+    border-radius: var(--border-radius-lg);
+    margin-bottom: var(--space-xl);
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-md);
+    border: 1px solid #bbdefb;
+  }
+
+  .shared-banner .icon {
+    font-size: 1.5rem;
+  }
+
+  .shared-banner .text p {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: #1565c0;
   }
 
   .loading,
