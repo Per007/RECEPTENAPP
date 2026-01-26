@@ -3,6 +3,7 @@
   import "$lib/styles/global.css";
   import { loadRecipes } from "$lib/stores/recipes";
   import { theme } from "$lib/stores/theme";
+  import { settings } from "$lib/stores/settings";
   import { base } from "$app/paths";
   import { page } from "$app/stores";
 
@@ -17,6 +18,7 @@
   onMount(() => {
     loadRecipes();
     theme.init();
+    settings.init();
 
     // Monitor online/offline status
     isOffline = !navigator.onLine;

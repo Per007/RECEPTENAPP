@@ -1,6 +1,7 @@
 <script lang="ts">
   import { exportRecipes, importRecipes, recipes } from "$lib/stores/recipes";
   import { theme } from "$lib/stores/theme";
+  import { settings } from "$lib/stores/settings";
   import Button from "$lib/components/Button.svelte";
 
   let fileInput: HTMLInputElement;
@@ -92,7 +93,7 @@
   {/if}
 
   <section class="section">
-    <h2>🎨 Uiterlijk</h2>
+    <h2>🎨 Uiterlijk & Functionaliteit</h2>
     <div class="theme-toggle-wrapper">
       <span class="theme-label" id="theme-label">Donkere modus</span>
       <label class="switch">
@@ -101,6 +102,21 @@
           checked={$theme === "dark"}
           onchange={theme.toggle}
           aria-labelledby="theme-label"
+        />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="theme-toggle-wrapper">
+      <span class="theme-label" id="whatsapp-label"
+        >Verberg WhatsApp deelknop</span
+      >
+      <label class="switch">
+        <input
+          type="checkbox"
+          checked={$settings.hideWhatsappShare}
+          onchange={settings.toggleWhatsappShare}
+          aria-labelledby="whatsapp-label"
         />
         <span class="slider"></span>
       </label>

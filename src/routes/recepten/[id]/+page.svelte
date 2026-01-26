@@ -15,7 +15,9 @@
     getCategoryIcon,
     type Recipe,
   } from "$lib/db/types";
+  import { settings } from "$lib/stores/settings";
   import Button from "$lib/components/Button.svelte";
+  import Lightbox from "$lib/components/Lightbox.svelte";
 
   let recipe = $state<Recipe | null>(null);
   let isLoading = $state(true);
@@ -23,6 +25,7 @@
   let isDeleting = $state(false);
   let isSharedPreview = $state(false);
   let isSaving = $state(false);
+  let selectedImage = $state<string | null>(null);
 
   const recipeId = $page.params.id ?? "";
 
@@ -193,7 +196,13 @@
     <!-- Hero image -->
     {#if recipe.photos && recipe.photos.length > 0}
       <div class="hero-image">
-        <img src={recipe.photos[0]} alt={recipe.title} />
+        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+        <img
+          src={recipe.photos[0]}
+          alt={recipe.title}
+          onclick={() => (selectedImage = recipe?.photos?.[0] ?? null)}
+          class="clickable-image"
+        />
         {#if !isSharedPreview}
           <button
             class="favorite-btn"
@@ -300,10 +309,13 @@
           <h2>📷 Foto's</h2>
           <div class="photo-grid">
             {#each recipe.photos as photo, index}
+              <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
               <img
                 src={photo}
                 alt="{recipe.title} foto {index + 1}"
                 loading="lazy"
+                onclick={() => (selectedImage = photo)}
+                class="clickable-image"
               />
             {/each}
           </div>
@@ -323,9 +335,11 @@
             Annuleren
           </Button>
         {:else}
-          <Button variant="secondary" onclick={shareViaWhatsApp}>
-            💬 Delen via WhatsApp
-          </Button>
+          {#if !$settings.hideWhatsappShare}
+            <Button variant="secondary" onclick={shareViaWhatsApp}>
+              💬 Delen via WhatsApp
+            </Button>
+          {/if}
           <Button
             variant="secondary"
             onclick={() => goto(`${base}/recepten/${recipe?.id}/bewerken`)}
@@ -371,6 +385,14 @@
           </div>
         </div>
       </div>
+    {/if}
+
+    {#if selectedImage}
+      <Lightbox
+        src={selectedImage}
+        alt="Vergrote weergave"
+        onclose={() => (selectedImage = null)}
+      />
     {/if}
   {/if}
 </div>
@@ -426,6 +448,10 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+
+  .clickable-image {
+    cursor: zoom-in;
   }
 
   .favorite-btn {
