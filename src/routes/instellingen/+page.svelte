@@ -3,6 +3,7 @@
   import { theme } from "$lib/stores/theme";
   import { settings } from "$lib/stores/settings";
   import Button from "$lib/components/Button.svelte";
+  import { version } from "../../../package.json";
 
   let fileInput: HTMLInputElement;
   let isExporting = $state(false);
@@ -129,6 +130,17 @@
       Download al uw recepten als een bestand om op te slaan of over te zetten
       naar een ander apparaat.
     </p>
+
+    <div class="info-box">
+      <span class="icon">ℹ️</span>
+      <p>
+        <strong>Let op:</strong> Uw recepten worden opgeslagen in
+        <em>deze specifieke browser</em>. Wisselt u tussen Chrome, Safari of de
+        app op het hoofdscherm? Dan moet u de gegevens handmatig overzetten via
+        export/import.
+      </p>
+    </div>
+
     <Button
       onclick={handleExport}
       disabled={isExporting || $recipes.length === 0}
@@ -201,7 +213,7 @@
   <section class="section">
     <h2>ℹ️ Over deze app</h2>
     <div class="about-content">
-      <p><strong>Mijn Recepten</strong> v1.0.0</p>
+      <p><strong>Mijn Recepten</strong> v{version}</p>
       <p>Een eenvoudige app voor het opslaan en beheren van recepten.</p>
       <ul class="feature-list">
         <li>✓ Werkt offline</li>
@@ -400,5 +412,27 @@
       height: auto !important;
       min-height: var(--touch-target-comfortable);
     }
+  }
+
+  .info-box {
+    background: rgba(33, 150, 243, 0.1);
+    border: 1px solid rgba(33, 150, 243, 0.3);
+    border-radius: var(--border-radius-md);
+    padding: var(--space-md);
+    margin-bottom: var(--space-lg);
+    display: flex;
+    gap: var(--space-sm);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+  }
+
+  .info-box .icon {
+    font-size: 1.25em;
+    flex-shrink: 0;
+  }
+
+  .info-box p {
+    margin: 0;
+    line-height: 1.5;
   }
 </style>

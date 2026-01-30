@@ -64,6 +64,11 @@
       >
         ➕ Voeg uw eerste recept toe
       </Button>
+      <p class="import-hint">
+        Recepten op een ander apparaat of browser? <a href="{base}/instellingen"
+          >Importeer uw backup</a
+        >
+      </p>
     </section>
   {/if}
 </div>
@@ -156,5 +161,15 @@
   .empty-state p {
     color: var(--color-text-secondary);
     margin-bottom: var(--space-lg);
+  }
+
+  .import-hint {
+    margin-top: var(--space-lg);
+    font-size: var(--font-size-sm);
+  }
+
+  .import-hint a {
+    color: var(--color-primary);
+    text-decoration: underline;
   }
 </style>

@@ -84,23 +84,23 @@
       {@render children()}
     {/if}
   </main>
-
-  <nav class="nav" aria-label="Hoofdnavigatie">
-    {#each navItems as item}
-      <a
-        href={item.href}
-        class="nav-item"
-        class:active={isActive(item.href, $page.url.pathname)}
-        aria-current={isActive(item.href, $page.url.pathname)
-          ? "page"
-          : undefined}
-      >
-        <span class="nav-icon" aria-hidden="true">{item.icon}</span>
-        <span class="nav-label">{item.label}</span>
-      </a>
-    {/each}
-  </nav>
 </div>
+
+<nav class="nav" aria-label="Hoofdnavigatie">
+  {#each navItems as item}
+    <a
+      href={item.href}
+      class="nav-item"
+      class:active={isActive(item.href, $page.url.pathname)}
+      aria-current={isActive(item.href, $page.url.pathname)
+        ? "page"
+        : undefined}
+    >
+      <span class="nav-icon" aria-hidden="true">{item.icon}</span>
+      <span class="nav-label">{item.label}</span>
+    </a>
+  {/each}
+</nav>
 
 <style>
   .app {
@@ -178,6 +178,9 @@
     padding-bottom: env(safe-area-inset-bottom, var(--space-sm));
     z-index: var(--z-sticky);
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    /* Prevent jitter on iOS */
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
   }
 
   .nav-item {
