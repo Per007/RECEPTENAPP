@@ -141,6 +141,26 @@
   async function handleSaveShared() {
     if (!recipe || !isSharedPreview) return;
 
+    // Check for duplicates in existing recipes
+    const duplicate = $recipes.find((r) => {
+      // Create simplified versions for comparison (ignoring IDs, dates, images, etc.)
+      const isTitleMatch =
+        r.title.toLowerCase() === recipe!.title.toLowerCase();
+      const isIngredientsMatch =
+        JSON.stringify(r.ingredients) === JSON.stringify(recipe!.ingredients);
+      const isInstructionsMatch = r.instructions === recipe!.instructions;
+
+      return isTitleMatch && isIngredientsMatch && isInstructionsMatch;
+    });
+
+    if (duplicate) {
+      alert(
+        "Dit recept staat al in uw lijst! U wordt nu doorgestuurd naar het bestaande recept.",
+      );
+      goto(`${base}/recepten/${duplicate.id}`);
+      return;
+    }
+
     isSaving = true;
     try {
       // Add the recipe to the database
