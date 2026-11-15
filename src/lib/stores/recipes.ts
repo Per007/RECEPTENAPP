@@ -2,6 +2,9 @@ import { writable, derived } from 'svelte/store';
 import type { Recipe, RecipeCategory } from '$lib/db/types';
 import * as db from '$lib/db/database';
 
+/** Wat een scherm aanlevert voor een nieuw recept; id's en datums komen van de server. */
+export type NewRecipe = Omit<Recipe, 'id' | 'createdAt' | 'updatedAt' | 'photoIds'>;
+
 // Main recipes store
 export const recipes = writable<Recipe[]>([]);
 export const isLoading = writable(true);
@@ -74,8 +77,8 @@ export async function loadRecipes(): Promise<void> {
 }
 
 // Add a new recipe
-export async function addRecipe(recipeData: Omit<Recipe, 'id' | 'createdAt' | 'updatedAt'>): Promise<Recipe> {
-    const newRecipe = await db.addRecipe(recipeData);
+export async function addRecipe(recipeData: NewRecipe): Promise<Recipe> {
+    const newRecipe = await db.addRecipe({ ...recipeData, photoIds: [] });
     recipes.update(r => [newRecipe, ...r]);
     return newRecipe;
 }

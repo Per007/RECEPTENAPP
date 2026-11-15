@@ -3,13 +3,13 @@
   import { goto } from "$app/navigation";
   import { base } from "$app/paths";
   import { onMount } from "svelte";
+  import { getRecipe } from "$lib/db/database";
   import {
-    getRecipe,
     addRecipe,
-    updateRecipe,
-    deleteRecipe as dbDeleteRecipe,
-  } from "$lib/db/database";
-  import { toggleFavorite, deleteRecipe, recipes } from "$lib/stores/recipes";
+    toggleFavorite,
+    deleteRecipe,
+    recipes,
+  } from "$lib/stores/recipes";
   import {
     getCategoryLabel,
     getCategoryIcon,
@@ -44,6 +44,7 @@
                 id: "shared-preview", // Temporary ID
                 isFavorite: false, // Reset favorite status
                 photos: [], // No photos in shared links
+                photoIds: [],
                 createdAt: new Date(),
                 updatedAt: new Date(),
               } as Recipe;

@@ -88,6 +88,7 @@ export async function getAllRecipes(): Promise<Recipe[]> {
         request.onsuccess = () => {
             const recipes = request.result.map((r: Recipe) => ({
                 ...r,
+                photoIds: r.photoIds ?? [],
                 createdAt: new Date(r.createdAt),
                 updatedAt: new Date(r.updatedAt)
             }));
@@ -112,6 +113,7 @@ export async function getRecipe(id: string): Promise<Recipe | null> {
             if (request.result) {
                 resolve({
                     ...request.result,
+                    photoIds: request.result.photoIds ?? [],
                     createdAt: new Date(request.result.createdAt),
                     updatedAt: new Date(request.result.updatedAt)
                 });
@@ -184,6 +186,7 @@ export async function getRecipesByCategory(category: RecipeCategory): Promise<Re
         request.onsuccess = () => {
             const recipes = request.result.map((r: Recipe) => ({
                 ...r,
+                photoIds: r.photoIds ?? [],
                 createdAt: new Date(r.createdAt),
                 updatedAt: new Date(r.updatedAt)
             }));
@@ -291,6 +294,34 @@ export async function getRecipeCount(): Promise<number> {
 
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(new Error('Failed to count recipes'));
+    });
+}
+
+// Bewaar een recept precies zoals gegeven (lokale kopie van wat de server heeft)
+export async function putRecipe(recipe: Recipe): Promise<void> {
+    const database = await initDB();
+
+    return new Promise((resolve, reject) => {
+        const transaction = database.transaction([STORE_NAME], 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.put(recipe);
+
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(new Error('Failed to store recipe'));
+    });
+}
+
+// Maak de lokale kopie leeg
+export async function clearRecipes(): Promise<void> {
+    const database = await initDB();
+
+    return new Promise((resolve, reject) => {
+        const transaction = database.transaction([STORE_NAME], 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.clear();
+
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(new Error('Failed to clear recipes'));
     });
 }
 

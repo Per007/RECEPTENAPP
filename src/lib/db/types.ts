@@ -18,6 +18,7 @@ export interface Recipe {
     ingredients?: string[];
     instructions?: string;
     photos: string[];  // Base64 encoded images
+    photoIds: string[];  // Server-id per foto, in dezelfde volgorde als photos
     sourceUrl?: string;
     isFavorite: boolean;
     servings?: number;

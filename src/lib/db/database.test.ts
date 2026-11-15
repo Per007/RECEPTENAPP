@@ -10,7 +10,9 @@ import {
     toggleFavorite,
     exportRecipes,
     importRecipes,
-    resetDB
+    resetDB,
+    putRecipe,
+    clearRecipes
 } from './database';
 import type { Recipe } from './types';
 
@@ -25,7 +27,8 @@ describe('Database Operations', () => {
         cookTime: 20,
         category: 'hoofdgerecht' as const,
         isFavorite: false,
-        photos: []
+        photos: [],
+        photoIds: []
     });
 
     // Clean up DB before all tests? 
@@ -124,5 +127,43 @@ describe('Database Operations', () => {
 
         const toggledBack = await toggleFavorite(created.id);
         expect(toggledBack.isFavorite).toBe(false);
+    });
+
+    const cached: Recipe = {
+        id: 'server-1',
+        title: 'Van de server',
+        category: 'soep',
+        photos: ['data:p1'],
+        photoIds: ['p1'],
+        isFavorite: true,
+        createdAt: new Date('2026-01-01T10:00:00.000Z'),
+        updatedAt: new Date('2026-01-02T10:00:00.000Z')
+    };
+
+    it('putRecipe bewaart het recept precies zoals gegeven', async () => {
+        await putRecipe(cached);
+        expect(await getRecipe('server-1')).toEqual(cached);
+    });
+
+    it('putRecipe overschrijft een bestaand recept met hetzelfde id', async () => {
+        await putRecipe(cached);
+        await putRecipe({ ...cached, title: 'Gewijzigd' });
+        const all = await getAllRecipes();
+        expect(all.length).toBe(1);
+        expect(all[0].title).toBe('Gewijzigd');
+        expect(all[0].updatedAt).toEqual(cached.updatedAt);
+    });
+
+    it('clearRecipes maakt de lokale kopie leeg', async () => {
+        await putRecipe(cached);
+        await clearRecipes();
+        expect(await getAllRecipes()).toEqual([]);
+    });
+
+    it('geeft een oud recept zonder photoIds een lege lijst', async () => {
+        const { photoIds, ...old } = cached;
+        await putRecipe(old as unknown as Recipe);
+        expect((await getRecipe('server-1'))?.photoIds).toEqual([]);
+        expect((await getAllRecipes())[0].photoIds).toEqual([]);
     });
 });
