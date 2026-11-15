@@ -10,5 +10,5 @@
 		"skipLibCheck": true,
 		"allowImportingTsExtensions": true
 	},
-	"include": ["./**/*.ts", "../src/lib/api/*.ts", "../src/lib/db/types.ts"]
+	"include": ["./**/*.ts", "../src/lib/api/code.ts", "../src/lib/api/types.ts", "../src/lib/db/types.ts"]
 }

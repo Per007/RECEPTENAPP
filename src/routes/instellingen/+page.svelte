@@ -1,5 +1,16 @@
 <script lang="ts">
-  import { exportRecipes, importRecipes, recipes } from "$lib/stores/recipes";
+  import { goto } from "$app/navigation";
+  import { base } from "$app/paths";
+  import {
+    exportRecipes,
+    importRecipes,
+    deleteAllRecipes,
+    recipes,
+  } from "$lib/stores/recipes";
+  import { bookCode } from "$lib/stores/book";
+  import { unlinkDevice } from "$lib/stores/link";
+  import { formatCode } from "$lib/api/code";
+  import QrCode from "$lib/components/QrCode.svelte";
   import { theme } from "$lib/stores/theme";
   import { settings } from "$lib/stores/settings";
   import Button from "$lib/components/Button.svelte";
@@ -11,6 +22,27 @@
   let importMode = $state<"merge" | "replace">("merge");
   let statusMessage = $state("");
   let statusType = $state<"success" | "error" | "">("");
+
+  const WIPE_WARNING =
+    "Hiermee verwijder je alle recepten uit het receptenboek, op alle gekoppelde apparaten. Dit kan niet ongedaan worden gemaakt.";
+  const NO_CONNECTION =
+    "✕ Dat is niet gelukt. Controleer de internetverbinding en probeer het opnieuw.";
+
+  // De link in de QR-code opent de app op het andere apparaat en koppelt het meteen.
+  const linkUrl = $derived(
+    $bookCode ? `${location.origin}${base}/koppelen?code=${$bookCode}` : "",
+  );
+
+  async function handleUnlink() {
+    if (
+      confirm(
+        "Weet je het zeker? De recepten blijven bewaard, maar dit apparaat heeft daarna de code weer nodig.",
+      )
+    ) {
+      await unlinkDevice();
+      goto(`${base}/welkom`, { replaceState: true });
+    }
+  }
 
   async function handleExport() {
     isExporting = true;
@@ -38,6 +70,11 @@
     const file = target.files?.[0];
     if (!file) return;
 
+    if (importMode === "replace" && !confirm(WIPE_WARNING)) {
+      target.value = "";
+      return;
+    }
+
     isImporting = true;
     statusMessage = "";
 
@@ -47,7 +84,9 @@
       statusType = "success";
     } catch (error) {
       statusMessage =
-        error instanceof Error ? `✕ ${error.message}` : "✕ Fout bij importeren";
+        error instanceof Error && error.message === "Dit bestand kan niet worden gelezen."
+          ? `✕ ${error.message}`
+          : NO_CONNECTION;
       statusType = "error";
       console.error(error);
     } finally {
@@ -57,23 +96,16 @@
   }
 
   async function handleClearData() {
-    if (
-      confirm(
-        "Weet u zeker dat u alle recepten wilt verwijderen? Dit kan niet ongedaan worden gemaakt.",
-      )
-    ) {
-      // Import with replace mode and empty data
-      try {
-        const { importRecipes: dbImport } = await import("$lib/db/database");
-        await dbImport('{"version":1,"recipes":[]}', "replace");
-        const { loadRecipes } = await import("$lib/stores/recipes");
-        await loadRecipes();
-        statusMessage = "✓ Alle recepten verwijderd";
-        statusType = "success";
-      } catch (error) {
-        statusMessage = "✕ Fout bij verwijderen";
-        statusType = "error";
-      }
+    if (!confirm(WIPE_WARNING)) return;
+
+    try {
+      await deleteAllRecipes();
+      statusMessage = "✓ Alle recepten verwijderd";
+      statusType = "success";
+    } catch (error) {
+      statusMessage = NO_CONNECTION;
+      statusType = "error";
+      console.error(error);
     }
   }
 </script>
@@ -91,6 +123,23 @@
     <div class="status-message {statusType}" role="status" aria-live="polite">
       {statusMessage}
     </div>
+  {/if}
+
+  {#if $bookCode}
+    <section class="section">
+      <h2>📱 Ander apparaat koppelen</h2>
+      <p class="section-description">
+        Typ deze code in op het andere apparaat, of scan de QR-code met de
+        camera.
+      </p>
+      <p class="code-heading">Jouw receptenboek-code</p>
+      <p class="book-code">{formatCode($bookCode)}</p>
+      <QrCode text={linkUrl} />
+      <p class="code-warning">
+        Bewaar deze code goed. Wie de code heeft, kan de recepten zien en
+        wijzigen.
+      </p>
+    </section>
   {/if}
 
   <section class="section">
@@ -127,17 +176,15 @@
   <section class="section">
     <h2>📤 Gegevens Exporteren</h2>
     <p class="section-description">
-      Download al uw recepten als een bestand om op te slaan of over te zetten
-      naar een ander apparaat.
+      Download al uw recepten als een bestand om te bewaren als reservekopie.
     </p>
 
     <div class="info-box">
       <span class="icon">ℹ️</span>
       <p>
-        <strong>Let op:</strong> Uw recepten worden opgeslagen in
-        <em>deze specifieke browser</em>. Wisselt u tussen Chrome, Safari of de
-        app op het hoofdscherm? Dan moet u de gegevens handmatig overzetten via
-        export/import.
+        Uw recepten staan in uw receptenboek op internet en zijn op elk
+        gekoppeld apparaat te zien. Een backup-bestand is een extra
+        reservekopie.
       </p>
     </div>
 
@@ -154,7 +201,8 @@
   <section class="section">
     <h2>📥 Gegevens Importeren</h2>
     <p class="section-description">
-      Laad recepten vanuit een eerder geëxporteerd bestand.
+      Laad recepten vanuit een eerder geëxporteerd bestand. Ze verschijnen op
+      alle gekoppelde apparaten. Hiervoor is internet nodig.
     </p>
 
     <div class="import-options">
@@ -180,7 +228,8 @@
         <span class="radio-label">
           <strong>Vervangen</strong>
           <span class="radio-desc"
-            >Verwijder alles en vervang met geïmporteerde recepten</span
+            >Verwijder alles, op alle gekoppelde apparaten, en vervang met
+            geïmporteerde recepten</span
           >
         </span>
       </label>
@@ -203,10 +252,18 @@
   <section class="section danger-zone">
     <h2>⚠️ Gevarenzone</h2>
     <p class="section-description">
-      Verwijder alle opgeslagen recepten. Dit kan niet ongedaan worden gemaakt!
+      Verwijder alle recepten uit het receptenboek, op alle gekoppelde
+      apparaten. Dit kan niet ongedaan worden gemaakt!
     </p>
     <Button variant="danger" onclick={handleClearData}>
       🗑️ Alle recepten verwijderen
+    </Button>
+
+    <p class="section-description unlink-description">
+      Of ontkoppel alleen dit apparaat. De recepten blijven dan bewaard.
+    </p>
+    <Button variant="secondary" onclick={handleUnlink}>
+      🔌 Dit apparaat ontkoppelen
     </Button>
   </section>
 
@@ -216,7 +273,8 @@
       <p><strong>Mijn Recepten</strong> v{version}</p>
       <p>Een eenvoudige app voor het opslaan en beheren van recepten.</p>
       <ul class="feature-list">
-        <li>✓ Werkt offline</li>
+        <li>✓ Recepten op al uw apparaten</li>
+        <li>✓ Lezen werkt ook zonder internet</li>
         <li>✓ Foto's toevoegen</li>
         <li>✓ Zoeken op ingrediënten</li>
         <li>✓ Gegevens exporteren/importeren</li>
@@ -319,6 +377,33 @@
     overflow: hidden;
     clip: rect(0, 0, 0, 0);
     border: 0;
+  }
+
+  .code-heading {
+    font-weight: var(--font-weight-semibold);
+    text-align: center;
+    margin-bottom: var(--space-xs);
+  }
+
+  .book-code {
+    /* Past op één regel, ook op een smalle telefoon. */
+    font-size: clamp(1.125rem, 5.5vw, var(--font-size-xl));
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.02em;
+    text-align: center;
+    white-space: nowrap;
+    margin-bottom: var(--space-lg);
+    user-select: all;
+  }
+
+  .code-warning {
+    margin-top: var(--space-lg);
+    color: var(--color-text-secondary);
+    text-align: center;
+  }
+
+  .unlink-description {
+    margin-top: var(--space-xl);
   }
 
   .danger-zone {

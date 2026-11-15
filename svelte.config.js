@@ -9,14 +9,10 @@ const config = {
 		adapter: adapter({
 			pages: 'build',
 			assets: 'build',
-			fallback: '404.html',
+			fallback: 'index.html',
 			precompress: false,
 			strict: true
-		}),
-		paths: {
-			// For GitHub Pages - update 'RECEPTENAPP' to match your repo name
-			base: process.env.NODE_ENV === 'production' ? '/RECEPTENAPP' : ''
-		}
+		})
 	}
 };
 

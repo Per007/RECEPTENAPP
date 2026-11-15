@@ -1,38 +1,53 @@
-# sv
+# Mijn Recepten
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+Een eenvoudige receptenapp voor ouderen. Recepten staan in een *receptenboek* op
+Cloudflare en zijn op elk gekoppeld apparaat te lezen en te wijzigen. Lezen werkt ook
+zonder internet; wijzigen vraagt internet.
 
-## Creating a project
+## Hoe het werkt
 
-If you're seeing this, you've probably already done this step. Congrats!
+- **Koppelen zonder account.** Het eerste apparaat maakt een receptenboek en krijgt een
+  code zoals `KOEK-4827-TAART`. Een ander apparaat typt die code in of scant de QR-code
+  (Instellingen → Ander apparaat koppelen). Wie de code heeft, kan alles lezen en wijzigen.
+- **Server is de waarheid.** Elke wijziging gaat eerst naar de server. Het apparaat houdt
+  een kopie bij (IndexedDB) om te tonen, ook offline.
+- **Techniek.** SvelteKit (statische SPA + PWA) in `src/`, een Cloudflare Worker in
+  `worker/` voor alles onder `/api/`, en een D1-database (schema in `migrations/`).
 
-```sh
-# create a new project in the current directory
-npx sv create
+Ontwerp en bouwplan staan in `docs/superpowers/`.
 
-# create a new project in my-app
-npx sv create my-app
-```
-
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
+## Lokaal draaien
 
 ```sh
-npm run build
+npm install --legacy-peer-deps
+npm run dev:worker     # bouwt de app en start Worker + database lokaal op http://localhost:8787
 ```
 
-You can preview the production build with `npm run preview`.
+`npm run dev` start alleen de schermen (zonder server); bewaren werkt dan niet.
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+## Testen
+
+```sh
+npm test -- --run      # app
+npm run test:worker    # Worker en database
+npm run check          # typen in de app
+npm run check:worker   # typen in de Worker
+```
+
+## Publiceren
+
+Eenmalig: `npx wrangler login`, daarna `npx wrangler d1 create mijn-recepten` en het
+getoonde `database_id` in `wrangler.jsonc` zetten.
+
+Daarna, bij elke nieuwe versie:
+
+```sh
+npm run deploy
+```
+
+## Code kwijt?
+
+Zolang er nog één gekoppeld apparaat is: Instellingen → Ander apparaat koppelen toont de
+code. Is er geen gekoppeld apparaat meer, dan is het receptenboek vanuit de app niet meer
+te bereiken. De gegevens staan nog wel in de D1-database (Cloudflare-dashboard → D1 →
+`mijn-recepten`), maar de code zelf is daar niet leesbaar opgeslagen.

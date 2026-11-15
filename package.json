@@ -12,7 +12,9 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test": "vitest",
 		"test:worker": "vitest --run --config vitest.worker.config.ts",
-		"check:worker": "tsc -p worker/tsconfig.json"
+		"check:worker": "tsc -p worker/tsconfig.json",
+		"deploy": "npm run build && wrangler d1 migrations apply mijn-recepten --remote && wrangler deploy",
+		"dev:worker": "npm run build && wrangler d1 migrations apply mijn-recepten --local && wrangler dev"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-plugin": "^1.8.2",
@@ -22,6 +24,7 @@
 		"@sveltejs/kit": "^2.49.1",
 		"@sveltejs/vite-plugin-svelte": "^6.2.1",
 		"@testing-library/svelte": "^5.3.1",
+		"@types/qrcode": "^1.5.6",
 		"@vite-pwa/sveltekit": "^1.1.0",
 		"fake-indexeddb": "^6.2.5",
 		"happy-dom": "^20.3.1",
@@ -32,5 +35,8 @@
 		"vitest": "^4.1.12",
 		"workbox-window": "^7.4.0",
 		"wrangler": "^4.162.0"
+	},
+	"dependencies": {
+		"qrcode": "^1.5.4"
 	}
 }

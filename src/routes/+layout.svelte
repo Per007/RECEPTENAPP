@@ -1,11 +1,14 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import "$lib/styles/global.css";
-  import { loadRecipes } from "$lib/stores/recipes";
+  import { loadRecipes, notice, error } from "$lib/stores/recipes";
+  import { bookCode, initBook } from "$lib/stores/book";
+  import { goto } from "$app/navigation";
   import { theme } from "$lib/stores/theme";
   import { settings } from "$lib/stores/settings";
   import { base } from "$app/paths";
   import { page } from "$app/stores";
+  import { pwaInfo } from "virtual:pwa-info";
 
   interface Props {
     children?: import("svelte").Snippet;
@@ -14,8 +17,40 @@
   let { children }: Props = $props();
 
   let isOffline = $state(false);
+  let ready = $state(false);
+
+  // Welkom en koppelen zijn de enige schermen voor een apparaat zonder receptenboek.
+  const path = $derived($page.url.pathname.replace(/\/$/, ""));
+  const isSetupRoute = $derived(
+    path === `${base}/welkom` || path === `${base}/koppelen`,
+  );
+
+  $effect(() => {
+    if (!ready) return;
+    if (!$bookCode && !isSetupRoute) {
+      goto(`${base}/welkom`, { replaceState: true });
+    } else if ($bookCode && path === `${base}/welkom`) {
+      goto(`${base}/`, { replaceState: true });
+    }
+  });
+
+  // Een melding verdwijnt vanzelf weer.
+  $effect(() => {
+    if (!$notice) return;
+    const timer = setTimeout(() => notice.set(null), 8000);
+    return () => clearTimeout(timer);
+  });
 
   onMount(() => {
+    initBook();
+    ready = true;
+
+    // De service worker bewaart de app zelf, zodat hij ook zonder internet opent.
+    if (pwaInfo) {
+      import("virtual:pwa-register")
+        .then(({ registerSW }) => registerSW({ immediate: true }))
+        .catch((e) => console.error("Service worker registreren mislukt:", e));
+    }
     loadRecipes();
     theme.init();
     settings.init();
@@ -23,15 +58,24 @@
     // Monitor online/offline status
     isOffline = !navigator.onLine;
 
-    const handleOnline = () => (isOffline = false);
+    const handleOnline = () => {
+      isOffline = false;
+      loadRecipes();
+    };
+    // Weer naar voren gehaald: kijk of een ander apparaat iets heeft gewijzigd.
+    const handleVisible = () => {
+      if (document.visibilityState === "visible") loadRecipes();
+    };
     const handleOffline = () => (isOffline = true);
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
+    document.addEventListener("visibilitychange", handleVisible);
 
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+      document.removeEventListener("visibilitychange", handleVisible);
     };
   });
 
@@ -59,6 +103,9 @@
     content="width=device-width, initial-scale=1, viewport-fit=cover"
   />
   <meta name="theme-color" content="#2E7D32" />
+  {#if pwaInfo}
+    <link rel="manifest" href={pwaInfo.webManifest.href} />
+  {/if}
 </svelte:head>
 
 <a href="#main-content" class="skip-link"> Ga naar hoofdinhoud </a>
@@ -66,7 +113,13 @@
 <div class="app">
   {#if isOffline}
     <div class="offline-banner" role="status" aria-live="polite">
-      📴 Offline modus - Wijzigingen worden lokaal opgeslagen
+      📴 Geen internet: je kunt lezen, niet wijzigen
+    </div>
+  {/if}
+
+  {#if $notice || $error}
+    <div class="notice-banner" role="alert">
+      ⚠️ {$notice || $error}
     </div>
   {/if}
 
@@ -80,12 +133,13 @@
   </header>
 
   <main id="main-content" class="main">
-    {#if children}
+    {#if children && ready && ($bookCode || isSetupRoute)}
       {@render children()}
     {/if}
   </main>
 </div>
 
+{#if ready && $bookCode && !isSetupRoute}
 <nav class="nav" aria-label="Hoofdnavigatie">
   {#each navItems as item}
     <a
@@ -101,6 +155,7 @@
     </a>
   {/each}
 </nav>
+{/if}
 
 <style>
   .app {
@@ -114,6 +169,15 @@
   .offline-banner {
     background: var(--color-warning);
     color: #000;
+    text-align: center;
+    padding: var(--space-sm) var(--space-md);
+    font-weight: var(--font-weight-medium);
+    font-size: var(--font-size-sm);
+  }
+
+  .notice-banner {
+    background: #ffebee;
+    color: var(--color-error);
     text-align: center;
     padding: var(--space-sm) var(--space-md);
     font-weight: var(--font-weight-medium);

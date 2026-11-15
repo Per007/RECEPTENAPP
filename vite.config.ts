@@ -7,6 +7,8 @@ export default defineConfig({
 		sveltekit(),
 		SvelteKitPWA({
 			registerType: 'autoUpdate',
+			// De app is een SPA: index.html is de terugval voor elke route, ook offline.
+			kit: { adapterFallback: 'index.html', spa: true },
 			manifest: {
 				name: 'Mijn Recepten',
 				short_name: 'Recepten',
@@ -37,6 +39,9 @@ export default defineConfig({
 				categories: ['food', 'lifestyle']
 			},
 			workbox: {
+				navigateFallback: '/index.html',
+				// Recepten en foto's komen uit de lokale kopie, nooit uit de cache van de service worker.
+				navigateFallbackDenylist: [/^\/api\//],
 				globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2}'],
 				runtimeCaching: [
 					{
