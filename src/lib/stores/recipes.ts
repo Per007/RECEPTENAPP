@@ -1,9 +1,22 @@
-import { writable, derived } from 'svelte/store';
-import type { Recipe, RecipeCategory } from '$lib/db/types';
+import { writable, derived, get } from 'svelte/store';
+import { CATEGORIES, type Recipe, type RecipeCategory } from '$lib/db/types';
 import * as db from '$lib/db/database';
+import * as api from '$lib/api/client';
+import { ApiError, OfflineError } from '$lib/api/client';
+import type { RecipeInput } from '$lib/api/types';
+import { syncFromServer, toLocal } from '$lib/sync/sync';
+import { getBookCode } from './book';
+
+// Recepten staan op de server; IndexedDB is de lokale kopie om uit te lezen.
+// Elke wijziging gaat eerst naar de server en pas na bevestiging naar de lokale kopie.
 
 /** Wat een scherm aanlevert voor een nieuw recept; id's en datums komen van de server. */
 export type NewRecipe = Omit<Recipe, 'id' | 'createdAt' | 'updatedAt' | 'photoIds'>;
+
+export const SAVE_FAILED =
+    'Bewaren is niet gelukt. Controleer de internetverbinding en probeer het opnieuw.';
+const LOAD_FAILED = 'Ophalen is niet gelukt. Je ziet de recepten van de vorige keer.';
+const UNREADABLE_FILE = 'Dit bestand kan niet worden gelezen.';
 
 // Main recipes store
 export const recipes = writable<Recipe[]>([]);
@@ -61,44 +74,176 @@ export const categoryCount = derived(recipes, $recipes => {
     return counts;
 });
 
-// Load all recipes from database
-export async function loadRecipes(): Promise<void> {
-    isLoading.set(true);
+let loading: Promise<void> | null = null;
+
+/**
+ * Toont eerst de lokale kopie en haalt daarna de laatste stand van de server.
+ * Zonder verbinding blijft de lokale kopie gewoon staan.
+ */
+export function loadRecipes(): Promise<void> {
+    loading ??= doLoad().finally(() => {
+        loading = null;
+    });
+    return loading;
+}
+
+async function doLoad(): Promise<void> {
     error.set(null);
 
     try {
-        const allRecipes = await db.getAllRecipes();
-        recipes.set(allRecipes);
+        recipes.set(await db.getAllRecipes());
     } catch (e) {
         error.set(e instanceof Error ? e.message : 'Fout bij het laden van recepten');
     } finally {
         isLoading.set(false);
     }
+
+    if (!getBookCode()) return;
+
+    try {
+        recipes.set(await syncFromServer());
+    } catch (e) {
+        if (!(e instanceof OfflineError)) error.set(LOAD_FAILED);
+    }
+}
+
+type ApiCall = <T>(fn: () => Promise<T>) => Promise<T>;
+const direct: ApiCall = (fn) => fn();
+
+/** Voor importeren: bij "te druk" (429) even wachten en dezelfde aanvraag herhalen. */
+function retrying(delayMs: number, attempts = 6): ApiCall {
+    return async (fn) => {
+        for (let attempt = 1; ; attempt++) {
+            try {
+                return await fn();
+            } catch (e) {
+                const busy = e instanceof ApiError && e.status === 429;
+                if (!busy || attempt >= attempts) throw e;
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+            }
+        }
+    };
+}
+
+function toInput(recipe: NewRecipe, photoIds: string[], createdAt?: Date): RecipeInput {
+    return {
+        title: recipe.title,
+        category: recipe.category,
+        ingredients: recipe.ingredients,
+        instructions: recipe.instructions,
+        sourceUrl: recipe.sourceUrl,
+        isFavorite: recipe.isFavorite,
+        servings: recipe.servings,
+        cookTime: recipe.cookTime,
+        notes: recipe.notes,
+        photoIds,
+        createdAt: createdAt?.toISOString()
+    };
+}
+
+/**
+ * Zorgt dat elke foto op de server staat en geeft de id's terug, in volgorde.
+ * Een foto die het bestaande recept al had houdt zijn id; de rest wordt geüpload.
+ */
+async function ensurePhotos(
+    recipeId: string,
+    photos: string[],
+    existing: Recipe | undefined,
+    call: ApiCall
+): Promise<string[]> {
+    const used = new Set<string>();
+    const photoIds: string[] = [];
+
+    for (const photo of photos) {
+        const index = existing ? existing.photos.indexOf(photo) : -1;
+        let photoId = index >= 0 ? existing!.photoIds[index] : undefined;
+        if (!photoId || used.has(photoId)) {
+            photoId = crypto.randomUUID();
+            const id = photoId;
+            await call(() => api.uploadPhoto(recipeId, id, photo));
+        }
+        used.add(photoId);
+        photoIds.push(photoId);
+    }
+    return photoIds;
+}
+
+async function createRecipe(data: NewRecipe, createdAt: Date | undefined, call: ApiCall): Promise<Recipe> {
+    const id = crypto.randomUUID();
+    const photoIds = await ensurePhotos(id, data.photos, undefined, call);
+    const remote = await call(() => api.saveRecipe(id, toInput(data, photoIds, createdAt)));
+
+    const saved = toLocal(remote, [...data.photos]);
+    await db.putRecipe(saved);
+    recipes.update(r => [saved, ...r]);
+    return saved;
+}
+
+async function findRecipe(id: string): Promise<Recipe> {
+    const recipe = get(recipes).find(r => r.id === id) ?? await db.getRecipe(id);
+    if (!recipe) throw new Error('Recept niet gevonden');
+    return recipe;
 }
 
 // Add a new recipe
-export async function addRecipe(recipeData: NewRecipe): Promise<Recipe> {
-    const newRecipe = await db.addRecipe({ ...recipeData, photoIds: [] });
-    recipes.update(r => [newRecipe, ...r]);
-    return newRecipe;
+export function addRecipe(recipeData: NewRecipe): Promise<Recipe> {
+    return createRecipe(recipeData, undefined, direct);
 }
 
 // Update a recipe
 export async function updateRecipe(id: string, updates: Partial<Recipe>): Promise<void> {
-    const updated = await db.updateRecipe(id, updates);
-    recipes.update(r => r.map(recipe => recipe.id === id ? updated : recipe));
+    const existing = await findRecipe(id);
+    const merged: Recipe = { ...existing, ...updates, id };
+
+    const photoIds = await ensurePhotos(id, merged.photos, existing, direct);
+    const remote = await api.saveRecipe(id, toInput(merged, photoIds));
+
+    const saved = toLocal(remote, [...merged.photos]);
+    await db.putRecipe(saved);
+    recipes.update(r => r.map(recipe => recipe.id === id ? saved : recipe));
 }
 
 // Delete a recipe
 export async function deleteRecipe(id: string): Promise<void> {
+    await api.removeRecipe(id);
     await db.deleteRecipe(id);
     recipes.update(r => r.filter(recipe => recipe.id !== id));
 }
 
 // Toggle favorite
 export async function toggleFavorite(id: string): Promise<void> {
-    const updated = await db.toggleFavorite(id);
-    recipes.update(r => r.map(recipe => recipe.id === id ? updated : recipe));
+    const existing = await findRecipe(id);
+    const remote = await api.saveRecipe(
+        id,
+        toInput({ ...existing, isFavorite: !existing.isFavorite }, existing.photoIds)
+    );
+
+    const saved = toLocal(remote, existing.photos);
+    await db.putRecipe(saved);
+    recipes.update(r => r.map(recipe => recipe.id === id ? saved : recipe));
+}
+
+/** Korte melding voor de gebruiker; de layout toont hem bovenaan. */
+export const notice = writable<string | null>(null);
+
+/** Favoriet maken vanuit een lijst: bij een fout een melding in plaats van een exception. */
+export async function tryToggleFavorite(id: string): Promise<void> {
+    try {
+        await toggleFavorite(id);
+    } catch (e) {
+        console.error(e);
+        notice.set(SAVE_FAILED);
+    }
+}
+
+/** Verwijdert alle recepten uit het receptenboek, op alle gekoppelde apparaten. */
+export async function deleteAllRecipes(call: ApiCall = direct): Promise<void> {
+    const remote = await call(() => api.listRecipes());
+    for (const recipe of remote) {
+        await call(() => api.removeRecipe(recipe.id));
+    }
+    await db.clearRecipes();
+    recipes.set([]);
 }
 
 // Export recipes
@@ -115,12 +260,64 @@ export async function exportRecipes(): Promise<void> {
     URL.revokeObjectURL(url);
 }
 
-// Import recipes
-export async function importRecipes(file: File, mode: 'replace' | 'merge' = 'merge'): Promise<number> {
-    const text = await file.text();
-    const count = await db.importRecipes(text, mode);
-    await loadRecipes();
-    return count;
+const CATEGORY_VALUES = new Set<string>(CATEGORIES.map(c => c.value));
+
+/** Leest een exportbestand (ook uit de oude app). Gooit bij een bestand dat niet klopt. */
+function parseImport(text: string): { recipe: NewRecipe; createdAt?: Date }[] {
+    let data: unknown;
+    try {
+        data = JSON.parse(text);
+    } catch {
+        throw new Error(UNREADABLE_FILE);
+    }
+    const list = (data as { recipes?: unknown } | null)?.recipes;
+    if (!Array.isArray(list)) throw new Error(UNREADABLE_FILE);
+
+    const text_ = (value: unknown) => (typeof value === 'string' && value ? value : undefined);
+    const number_ = (value: unknown) => (typeof value === 'number' ? value : undefined);
+
+    return list.map((item) => {
+        if (typeof item !== 'object' || item === null) throw new Error(UNREADABLE_FILE);
+        const r = item as Record<string, unknown>;
+        if (typeof r.title !== 'string' || !r.title.trim()) throw new Error(UNREADABLE_FILE);
+
+        const created = typeof r.createdAt === 'string' ? new Date(r.createdAt) : undefined;
+        const recipe: NewRecipe = {
+            title: r.title.trim(),
+            category: (CATEGORY_VALUES.has(r.category as string) ? r.category : 'anders') as RecipeCategory,
+            ingredients: Array.isArray(r.ingredients)
+                ? r.ingredients.filter((i): i is string => typeof i === 'string')
+                : undefined,
+            instructions: text_(r.instructions),
+            photos: Array.isArray(r.photos)
+                ? r.photos.filter((p): p is string => typeof p === 'string' && p.startsWith('data:'))
+                : [],
+            sourceUrl: text_(r.sourceUrl),
+            isFavorite: r.isFavorite === true,
+            servings: number_(r.servings),
+            cookTime: number_(r.cookTime),
+            notes: text_(r.notes)
+        };
+        return { recipe, createdAt: created && !isNaN(created.getTime()) ? created : undefined };
+    });
+}
+
+// Import recipes: het bestand gaat naar de server en verschijnt zo op alle apparaten
+export async function importRecipes(
+    file: File,
+    mode: 'replace' | 'merge' = 'merge',
+    options: { retryDelayMs?: number } = {}
+): Promise<number> {
+    // Eerst het hele bestand controleren; pas daarna iets wijzigen.
+    const items = parseImport(await file.text());
+    const call = retrying(options.retryDelayMs ?? 15000);
+
+    if (mode === 'replace') await deleteAllRecipes(call);
+
+    for (const { recipe, createdAt } of items) {
+        await createRecipe(recipe, createdAt, call);
+    }
+    return items.length;
 }
 
 // Clear all filters

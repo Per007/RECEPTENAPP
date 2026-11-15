@@ -6,7 +6,8 @@
   import { getRecipe } from "$lib/db/database";
   import {
     addRecipe,
-    toggleFavorite,
+    tryToggleFavorite,
+    SAVE_FAILED,
     deleteRecipe,
     recipes,
   } from "$lib/stores/recipes";
@@ -77,7 +78,7 @@
 
   async function handleToggleFavorite() {
     if (recipe && !isSharedPreview) {
-      await toggleFavorite(recipe.id);
+      await tryToggleFavorite(recipe.id);
     }
   }
 
@@ -132,7 +133,7 @@
       goto(`${base}/recepten`);
     } catch (error) {
       console.error("Error deleting recipe:", error);
-      alert("Fout bij het verwijderen. Probeer het opnieuw.");
+      alert("Verwijderen is niet gelukt. Controleer de internetverbinding en probeer het opnieuw.");
     } finally {
       isDeleting = false;
       showDeleteConfirm = false;
@@ -186,7 +187,7 @@
       goto(`${base}/recepten/${savedRecipe.id}`);
     } catch (error) {
       console.error("Error saving shared recipe:", error);
-      alert("Er ging iets mis bij het opslaan.");
+      alert(SAVE_FAILED);
     } finally {
       isSaving = false;
     }

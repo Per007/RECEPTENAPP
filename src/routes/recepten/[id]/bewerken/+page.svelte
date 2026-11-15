@@ -4,7 +4,7 @@
   import { base } from "$app/paths";
   import { onMount } from "svelte";
   import { getRecipe } from "$lib/db/database";
-  import { updateRecipe, deleteRecipe } from "$lib/stores/recipes";
+  import { updateRecipe, deleteRecipe, SAVE_FAILED } from "$lib/stores/recipes";
   import { CATEGORIES, type Recipe, type RecipeCategory } from "$lib/db/types";
   import Button from "$lib/components/Button.svelte";
   import PhotoCapture from "$lib/components/PhotoCapture.svelte";
@@ -98,7 +98,7 @@
       console.log("Recipe updated successfully");
       goto(`${base}/recepten/${recipeId}`);
     } catch (error) {
-      errorMessage = "Er ging iets mis. Probeer het opnieuw.";
+      errorMessage = SAVE_FAILED;
       console.error(error);
     } finally {
       isSubmitting = false;
@@ -113,7 +113,7 @@
       goto(`${base}/recepten`);
     } catch (error) {
       console.error("Error deleting recipe:", error);
-      errorMessage = "Fout bij het verwijderen. Probeer het opnieuw.";
+      errorMessage = "Verwijderen is niet gelukt. Controleer de internetverbinding en probeer het opnieuw.";
       showDeleteConfirm = false;
     } finally {
       isDeleting = false;

@@ -4,7 +4,7 @@
     recipes, 
     isLoading, 
     favoritesCount,
-    toggleFavorite 
+    tryToggleFavorite 
   } from '$lib/stores/recipes';
   import RecipeCard from '$lib/components/RecipeCard.svelte';
   import Button from '$lib/components/Button.svelte';
@@ -32,7 +32,7 @@
       {#each favoriteRecipes as recipe (recipe.id)}
         <RecipeCard 
           {recipe} 
-          onFavoriteClick={(id) => toggleFavorite(id)} 
+          onFavoriteClick={(id) => tryToggleFavorite(id)} 
         />
       {/each}
     </div>

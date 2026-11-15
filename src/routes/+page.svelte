@@ -3,7 +3,7 @@
   import { recipes, isLoading } from "$lib/stores/recipes";
   import RecipeCard from "$lib/components/RecipeCard.svelte";
   import Button from "$lib/components/Button.svelte";
-  import { toggleFavorite } from "$lib/stores/recipes";
+  import { tryToggleFavorite } from "$lib/stores/recipes";
 
   // Get the 4 most recent recipes
   let recentRecipes = $derived($recipes.slice(0, 4));
@@ -48,7 +48,7 @@
           <RecipeCard
             {recipe}
             variant="compact"
-            onFavoriteClick={(id) => toggleFavorite(id)}
+            onFavoriteClick={(id) => tryToggleFavorite(id)}
           />
         {/each}
       </div>

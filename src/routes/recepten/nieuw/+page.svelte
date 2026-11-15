@@ -2,7 +2,7 @@
   import { goto } from "$app/navigation";
   import { base } from "$app/paths";
   import { CATEGORIES, type RecipeCategory } from "$lib/db/types";
-  import { addRecipe } from "$lib/stores/recipes";
+  import { addRecipe, SAVE_FAILED } from "$lib/stores/recipes";
   import Button from "$lib/components/Button.svelte";
   import PhotoCapture from "$lib/components/PhotoCapture.svelte";
 
@@ -91,7 +91,7 @@
       console.log("Recipe added successfully:", recipe.id);
       goto(`${base}/recepten/${recipe.id}`);
     } catch (error) {
-      errorMessage = "Er ging iets mis. Probeer het opnieuw.";
+      errorMessage = SAVE_FAILED;
       console.error(error);
     } finally {
       isSubmitting = false;

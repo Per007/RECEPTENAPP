@@ -6,7 +6,7 @@
     searchQuery,
     selectedCategory,
     categoryCount,
-    toggleFavorite,
+    tryToggleFavorite,
   } from "$lib/stores/recipes";
   import type { RecipeCategory } from "$lib/db/types";
   import RecipeCard from "$lib/components/RecipeCard.svelte";
@@ -66,7 +66,7 @@
     </div>
     <div class="recipe-grid">
       {#each $filteredRecipes as recipe (recipe.id)}
-        <RecipeCard {recipe} onFavoriteClick={(id) => toggleFavorite(id)} />
+        <RecipeCard {recipe} onFavoriteClick={(id) => tryToggleFavorite(id)} />
       {/each}
     </div>
   {:else}
