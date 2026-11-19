@@ -10,6 +10,7 @@
   import { base } from "$app/paths";
   import { page } from "$app/stores";
   import { pwaInfo } from "virtual:pwa-info";
+  import Icon, { type IconName } from "$lib/components/Icon.svelte";
 
   interface Props {
     children?: import("svelte").Snippet;
@@ -77,12 +78,13 @@
     };
   });
 
-  const navItems = [
-    { href: `${base}/`, label: "Home", icon: "🏠" },
-    { href: `${base}/recepten`, label: "Recepten", icon: "📖" },
-    { href: `${base}/recepten/nieuw`, label: "Nieuw", icon: "➕" },
-    { href: `${base}/favorieten`, label: "Favorieten", icon: "⭐" },
-    { href: `${base}/instellingen`, label: "Instellingen", icon: "⚙️" },
+
+  const navItems: { href: string; label: string; icon: IconName }[] = [
+    { href: `${base}/`, label: "Home", icon: "home" },
+    { href: `${base}/recepten`, label: "Recepten", icon: "book" },
+    { href: `${base}/recepten/nieuw`, label: "Nieuw", icon: "plus-circle" },
+    { href: `${base}/favorieten`, label: "Favorieten", icon: "star" },
+    { href: `${base}/instellingen`, label: "Instellingen", icon: "sliders" },
   ];
 
   function isActive(href: string, currentPath: string): boolean {
@@ -91,8 +93,17 @@
         currentPath === `${base}/` || currentPath === base || currentPath === ""
       );
     }
+    // "Nieuw" (/recepten/nieuw) mag "Recepten" niet ook actief maken
+    if (href === `${base}/recepten`) {
+      return (
+        currentPath.startsWith(href) &&
+        !currentPath.startsWith(`${base}/recepten/nieuw`)
+      );
+    }
     return currentPath.startsWith(href);
   }
+
+  const showNav = $derived(ready && !!$bookCode && !isSetupRoute);
 </script>
 
 <svelte:head>
@@ -100,7 +111,7 @@
     name="viewport"
     content="width=device-width, initial-scale=1, viewport-fit=cover"
   />
-  <meta name="theme-color" content="#2E7D32" />
+  <meta name="theme-color" content="#FAF6EF" />
   {#if pwaInfo}
     <link rel="manifest" href={pwaInfo.webManifest.href} />
   {/if}
@@ -108,7 +119,7 @@
 
 <a href="#main-content" class="skip-link"> Ga naar hoofdinhoud </a>
 
-<div class="app">
+<div class="app" class:has-nav={showNav}>
   {#if isOffline}
     <div class="offline-banner" role="status" aria-live="polite">
       📴 Geen internet: je kunt lezen, niet wijzigen
@@ -124,9 +135,27 @@
   <header class="header">
     <div class="header-content container">
       <a href="{base}/" class="logo">
-        <span class="logo-icon">🍳</span>
+        <span class="logo-icon"><Icon name="pot" size={26} /></span>
         <span class="logo-text">Mijn Recepten</span>
       </a>
+
+      {#if showNav}
+        <!-- Eén navigatie: onderaan op telefoon en tablet, in de kop op een groot scherm -->
+        <nav class="nav" aria-label="Hoofdnavigatie">
+          {#each navItems as item}
+            {@const active = isActive(item.href, $page.url.pathname)}
+            <a
+              href={item.href}
+              class="nav-item"
+              class:active
+              aria-current={active ? "page" : undefined}
+            >
+              <Icon name={item.icon} size={26} filled={active && item.icon === "star"} />
+              <span class="nav-label">{item.label}</span>
+            </a>
+          {/each}
+        </nav>
+      {/if}
     </div>
   </header>
 
@@ -137,24 +166,6 @@
   </main>
 </div>
 
-{#if ready && $bookCode && !isSetupRoute}
-<nav class="nav" aria-label="Hoofdnavigatie">
-  {#each navItems as item}
-    <a
-      href={item.href}
-      class="nav-item"
-      class:active={isActive(item.href, $page.url.pathname)}
-      aria-current={isActive(item.href, $page.url.pathname)
-        ? "page"
-        : undefined}
-    >
-      <span class="nav-icon" aria-hidden="true">{item.icon}</span>
-      <span class="nav-label">{item.label}</span>
-    </a>
-  {/each}
-</nav>
-{/if}
-
 <style>
   .app {
     display: flex;
@@ -163,100 +174,105 @@
     min-height: 100dvh;
   }
 
-  /* Offline Banner */
   .offline-banner {
     background: var(--color-warning);
     color: #000;
     text-align: center;
     padding: var(--space-sm) var(--space-md);
-    font-weight: var(--font-weight-medium);
+    font-weight: var(--font-weight-bold);
     font-size: var(--font-size-sm);
   }
 
   .notice-banner {
-    background: #ffebee;
+    background: var(--color-error-soft);
     color: var(--color-error);
+    border-bottom: var(--border-width) solid var(--color-error);
     text-align: center;
     padding: var(--space-sm) var(--space-md);
-    font-weight: var(--font-weight-medium);
+    font-weight: var(--font-weight-bold);
     font-size: var(--font-size-sm);
   }
 
-  /* Header */
+  /* ---- Kop: licht en rustig, scrolt mee weg (meer ruimte bij inzoomen) ---- */
   .header {
-    background: var(--color-primary);
-    color: var(--color-text-on-primary);
-    height: var(--header-height);
-    display: flex;
-    align-items: center;
-    position: sticky;
-    top: 0;
-    z-index: var(--z-sticky);
-    box-shadow: var(--shadow-md);
+    background: var(--color-bg-card);
+    border-bottom: 1px solid var(--color-border);
   }
 
   .header-content {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: var(--space-lg);
+    min-height: var(--header-height);
   }
 
   .logo {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: var(--space-sm);
+    min-height: var(--touch-target-min);
+    color: var(--color-text);
     text-decoration: none;
-    color: inherit;
+  }
+
+  .logo:hover {
+    color: var(--color-text);
   }
 
   .logo-icon {
-    font-size: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: var(--border-radius-full);
+    background: var(--color-primary);
+    color: var(--color-text-on-primary);
   }
 
   .logo-text {
-    font-size: var(--font-size-xl);
+    font-family: var(--font-family-display);
+    font-size: var(--font-size-lg);
     font-weight: var(--font-weight-bold);
+    letter-spacing: -0.01em;
   }
 
-  /* Main Content */
   .main {
     flex: 1;
-    padding-bottom: calc(var(--nav-height) + var(--space-lg));
   }
 
-  /* Bottom Navigation */
+  /* ---- Navigatie: onderaan (telefoon/tablet) ---- */
   .nav {
     position: fixed;
-    bottom: 0;
     left: 0;
     right: 0;
-    height: var(--nav-height);
-    background: var(--color-bg-card);
-    border-top: 1px solid var(--color-border);
+    bottom: 0;
+    z-index: var(--z-sticky);
     display: flex;
     justify-content: space-around;
-    align-items: center;
-    padding: var(--space-sm);
-    padding-bottom: env(safe-area-inset-bottom, var(--space-sm));
-    z-index: var(--z-sticky);
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
-    /* Prevent jitter on iOS */
-    -webkit-transform: translateZ(0);
-    transform: translateZ(0);
+    gap: 2px;
+    padding: 6px var(--space-xs);
+    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+    background: var(--color-bg-card);
+    border-top: 1px solid var(--color-border-strong);
+    box-shadow: 0 -4px 16px rgba(60, 40, 20, 0.08);
   }
 
   .nav-item {
+    position: relative;
+    flex: 1;
+    max-width: 120px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    padding: var(--space-xs) var(--space-sm);
+    gap: 2px;
+    min-height: 60px;
+    padding: 4px 2px;
+    border-radius: var(--border-radius-md);
     color: var(--color-text-muted);
     text-decoration: none;
-    border-radius: var(--border-radius-md);
-    min-width: var(--touch-target-min);
-    min-height: var(--touch-target-min);
     transition:
       color var(--transition-fast),
       background-color var(--transition-fast);
@@ -264,32 +280,94 @@
 
   .nav-item:hover {
     background: var(--color-bg-hover);
-    color: var(--color-primary);
+    color: var(--color-text);
   }
 
+  /* Actief: kleur, vlak, vette tekst én een balkje — niet alleen kleur */
   .nav-item.active {
-    color: var(--color-primary);
+    background: var(--color-primary-soft);
+    color: var(--color-primary-dark);
   }
 
-  .nav-icon {
-    font-size: 1.5rem;
+  .nav-item.active::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 25%;
+    right: 25%;
+    height: 4px;
+    border-radius: 0 0 4px 4px;
+    background: var(--color-primary);
   }
 
   .nav-label {
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-medium);
+    font-size: 0.9375rem;
+    font-weight: var(--font-weight-semibold);
+    line-height: 1.2;
   }
 
-  /* Safe area for iOS */
-  @supports (padding-bottom: env(safe-area-inset-bottom)) {
-    .nav {
-      padding-bottom: calc(env(safe-area-inset-bottom) + var(--space-sm));
+  .nav-item.active .nav-label {
+    font-weight: var(--font-weight-bold);
+  }
+
+  .app.has-nav .main {
+    padding-bottom: calc(var(--nav-height) + var(--space-lg) + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Weinig hoogte (bijv. ingezoomd op 200%): compactere balk, labels blijven staan */
+  @media (max-height: 520px) and (max-width: 959px) {
+    .nav-item {
+      min-height: 48px;
+      flex-direction: row;
+      gap: 6px;
     }
 
-    .main {
-      padding-bottom: calc(
-        var(--nav-height) + env(safe-area-inset-bottom) + var(--space-lg)
-      );
+    .nav-item :global(.icon) {
+      width: 22px;
+      height: 22px;
+    }
+
+    .app.has-nav .main {
+      padding-bottom: calc(60px + var(--space-lg));
+    }
+  }
+
+  /* ---- Navigatie in de kop (groot scherm) ---- */
+  @media (min-width: 960px) {
+    .nav {
+      position: static;
+      padding: 0;
+      gap: var(--space-xs);
+      background: none;
+      border: none;
+      box-shadow: none;
+    }
+
+    .nav-item {
+      flex: none;
+      max-width: none;
+      flex-direction: row;
+      gap: var(--space-xs);
+      min-height: var(--touch-target-min);
+      padding: var(--space-xs) var(--space-md);
+      border-radius: var(--border-radius-full);
+    }
+
+    .nav-item.active::before {
+      top: auto;
+      bottom: -10px;
+      left: var(--space-md);
+      right: var(--space-md);
+      height: 4px;
+      border-radius: 4px;
+    }
+
+    .nav-label {
+      font-size: var(--font-size-base);
+    }
+
+    .app.has-nav .main {
+      padding-bottom: var(--space-xl);
     }
   }
 </style>

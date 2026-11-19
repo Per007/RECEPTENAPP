@@ -8,16 +8,28 @@
     categoryCount,
     tryToggleFavorite,
   } from "$lib/stores/recipes";
-  import type { RecipeCategory } from "$lib/db/types";
   import RecipeCard from "$lib/components/RecipeCard.svelte";
   import SearchBar from "$lib/components/SearchBar.svelte";
   import CategoryFilter from "$lib/components/CategoryFilter.svelte";
   import Button from "$lib/components/Button.svelte";
+  import Icon from "$lib/components/Icon.svelte";
+
+  const total = $derived($categoryCount["all"] ?? 0);
+  const isFiltered = $derived(!!$searchQuery || $selectedCategory !== "all");
 
   function searchOnline() {
     if (!$searchQuery) return;
     const query = encodeURIComponent($searchQuery + " recept");
     window.open(`https://www.google.com/search?q=${query}`, "_blank");
+  }
+
+  function clearFilters() {
+    $searchQuery = "";
+    $selectedCategory = "all";
+  }
+
+  function recepten(n: number) {
+    return `${n} recept${n === 1 ? "" : "en"}`;
   }
 </script>
 
@@ -28,228 +40,235 @@
 
 <div class="page container">
   <header class="page-header">
-    <h1>Mijn Recepten</h1>
+    <div>
+      <h1>Mijn recepten</h1>
+      {#if total > 0}
+        <p class="subtitle">{recepten(total)} in uw receptenboek</p>
+      {/if}
+    </div>
+    <a href="{base}/recepten/nieuw" class="btn btn-primary new-btn">
+      <Icon name="plus" size={22} strokeWidth={2.5} />
+      Nieuw recept
+    </a>
   </header>
 
-  <div class="filters">
-    <div class="search-group">
-      <div class="search-bar-wrapper">
-        <SearchBar
-          bind:value={$searchQuery}
-          placeholder="Zoek op naam of ingrediënt..."
-        />
-      </div>
-      <Button
-        variant="secondary"
-        onclick={searchOnline}
-        disabled={!$searchQuery}
-        ariaLabel="Zoek online op Google"
-      >
-        🌍
-      </Button>
-    </div>
+  <section class="finder" aria-label="Zoeken en filteren">
+    <SearchBar
+      bind:value={$searchQuery}
+      label="Zoek een recept"
+      placeholder="Naam of ingrediënt, bijv. soep"
+    />
 
-    <CategoryFilter bind:selected={$selectedCategory} counts={$categoryCount} />
-  </div>
+    {#if $searchQuery}
+      <button type="button" class="online-link" onclick={searchOnline}>
+        <Icon name="globe" size={20} />
+        Zoek „{$searchQuery}” ook op internet
+      </button>
+    {/if}
+
+    {#if total > 0}
+      <CategoryFilter bind:selected={$selectedCategory} counts={$categoryCount} />
+    {/if}
+  </section>
 
   {#if $isLoading}
-    <div class="loading">
-      <p>⏳ Recepten laden...</p>
+    <div class="loading" role="status">
+      <p>Recepten laden…</p>
     </div>
   {:else if $filteredRecipes.length > 0}
-    <div class="results-info">
-      <span
-        >{$filteredRecipes.length} recept{$filteredRecipes.length !== 1
-          ? "en"
-          : ""} gevonden</span
-      >
-    </div>
-    <div class="recipe-grid">
+    {#if isFiltered}
+      <div class="results-info">
+        <p role="status">
+          <strong>{recepten($filteredRecipes.length)}</strong> gevonden
+        </p>
+        <Button variant="ghost" size="sm" onclick={clearFilters}>
+          <Icon name="x" size={18} />
+          Toon alles
+        </Button>
+      </div>
+    {/if}
+    <ul class="recipe-grid" role="list">
       {#each $filteredRecipes as recipe (recipe.id)}
-        <RecipeCard {recipe} onFavoriteClick={(id) => tryToggleFavorite(id)} />
+        <li>
+          <RecipeCard {recipe} onFavoriteClick={(id) => tryToggleFavorite(id)} />
+        </li>
       {/each}
-    </div>
+    </ul>
   {:else}
-    <div class="empty-state">
-      <div class="empty-icon">🔍</div>
-      <h2>Geen recepten gevonden</h2>
-      {#if $searchQuery || $selectedCategory !== "all"}
-        <p>Pas uw zoek- of filtercriteria aan</p>
-        <Button
-          variant="secondary"
-          onclick={() => {
-            $searchQuery = "";
-            $selectedCategory = "all";
-          }}
-        >
-          Filters wissen
-        </Button>
-
-        {#if $searchQuery}
-          <div class="online-search-suggestion">
-            <p>Niet gevonden? Zoek online:</p>
+    <div class="empty-state" role="status">
+      <div class="empty-icon" aria-hidden="true">
+        <Icon name="search" size={40} />
+      </div>
+      {#if isFiltered}
+        <h2>Geen recepten gevonden</h2>
+        <p>Probeer een ander woord, of kies een andere soort gerecht.</p>
+        <div class="empty-actions">
+          <Button variant="secondary" onclick={clearFilters}>
+            Toon alle recepten
+          </Button>
+          {#if $searchQuery}
             <Button variant="secondary" onclick={searchOnline}>
-              🌍 Zoek "{$searchQuery}" op Google
+              <Icon name="globe" size={20} />
+              Zoek „{$searchQuery}” op internet
             </Button>
-          </div>
-        {/if}
+          {/if}
+        </div>
       {:else}
-        <p>U heeft nog geen recepten opgeslagen</p>
-        <Button
-          onclick={() => (window.location.href = `${base}/recepten/nieuw`)}
-        >
-          ➕ Voeg uw eerste recept toe
-        </Button>
+        <h2>Nog geen recepten</h2>
+        <p>U heeft nog geen recepten opgeslagen.</p>
+        <a href="{base}/recepten/nieuw" class="btn btn-primary btn-lg">
+          <Icon name="plus" size={24} strokeWidth={2.5} />
+          Voeg uw eerste recept toe
+        </a>
       {/if}
     </div>
   {/if}
-
-  <a
-    href="{base}/recepten/nieuw"
-    class="fab"
-    aria-label="Nieuw recept toevoegen"
-  >
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="32"
-      height="32"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="3"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <line x1="12" y1="5" x2="12" y2="19"></line>
-      <line x1="5" y1="12" x2="19" y2="12"></line>
-    </svg>
-  </a>
 </div>
 
 <style>
   .page {
-    padding: var(--space-lg) var(--content-padding);
+    padding-top: var(--space-xl);
+    padding-bottom: var(--space-2xl);
   }
 
   .page-header {
-    margin-bottom: var(--space-lg);
-  }
-
-  .page-header h1 {
-    margin: 0;
-  }
-
-  .filters {
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
     gap: var(--space-md);
     margin-bottom: var(--space-lg);
   }
 
-  .search-group {
-    display: flex;
-    gap: var(--space-sm);
-    align-items: center;
+  .page-header h1 {
+    font-size: clamp(2rem, 6vw, var(--font-size-3xl));
   }
 
-  @media (max-width: 480px) {
-    .search-group {
-      gap: var(--space-xs);
-    }
+  .subtitle {
+    margin-top: var(--space-xs);
+    color: var(--color-text-muted);
   }
 
-  .search-bar-wrapper {
-    flex: 1;
-  }
-
-  .online-search-suggestion {
-    margin-top: var(--space-lg);
-    padding-top: var(--space-md);
-    border-top: 1px solid var(--color-border);
+  .finder {
     display: flex;
     flex-direction: column;
+    gap: var(--space-lg);
+    padding: var(--space-lg);
+    margin-bottom: var(--space-xl);
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-xl);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Link-achtige knop: onderstreept, zodat hij als bedienbaar herkenbaar is */
+  .online-link {
+    align-self: flex-start;
+    display: inline-flex;
     align-items: center;
-    gap: var(--space-sm);
+    gap: var(--space-xs);
+    min-height: var(--touch-target-min);
+    margin-top: calc(-1 * var(--space-sm));
+    padding: 0 var(--space-xs);
+    border: none;
+    background: none;
+    color: var(--color-primary);
+    font-weight: var(--font-weight-semibold);
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.2em;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .online-link:hover {
+    color: var(--color-primary-dark);
   }
 
   .results-info {
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
     margin-bottom: var(--space-md);
+    color: var(--color-text-muted);
+  }
+
+  .results-info strong {
+    color: var(--color-text);
   }
 
   .recipe-grid {
+    list-style: none;
+    padding: 0;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
     gap: var(--space-lg);
   }
 
-  @media (max-width: 600px) {
+  .recipe-grid > li {
+    margin: 0;
+    display: flex;
+  }
+
+  .recipe-grid > li > :global(.card) {
+    flex: 1;
+  }
+
+  @media (max-width: 599px) {
+    .page {
+      padding-top: var(--space-lg);
+    }
+
+    /* Op de telefoon staat "Nieuw" al in de balk onderin: meer ruimte voor de recepten */
+    .new-btn {
+      display: none;
+    }
+
+    .page-header {
+      margin-bottom: var(--space-md);
+    }
+
+    .finder {
+      padding: var(--space-md);
+      border-radius: var(--border-radius-lg);
+    }
+
     .recipe-grid {
-      grid-template-columns: 1fr;
+      gap: var(--space-sm);
     }
   }
 
-  .loading {
+  .loading,
+  .empty-state {
     text-align: center;
-    padding: var(--space-2xl);
-    font-size: var(--font-size-lg);
+    padding: var(--space-2xl) var(--space-md);
     color: var(--color-text-secondary);
   }
 
   .empty-state {
-    text-align: center;
-    padding: var(--space-2xl) var(--space-lg);
-    background: var(--color-bg-card);
-    border-radius: var(--border-radius-lg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-md);
   }
 
   .empty-icon {
-    font-size: 4rem;
-    margin-bottom: var(--space-lg);
-  }
-
-  .empty-state h2 {
-    margin-bottom: var(--space-sm);
-  }
-
-  .empty-state p {
-    color: var(--color-text-secondary);
-    margin-bottom: var(--space-lg);
-  }
-
-  /* Floating Action Button */
-  .fab {
-    position: fixed;
-    bottom: calc(var(--nav-height) + var(--space-lg));
-    right: var(--space-lg);
-    width: 64px;
-    height: 64px;
-    border-radius: var(--border-radius-full);
-    background: var(--color-primary);
-    color: var(--color-text-on-primary);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5rem;
-    text-decoration: none;
-    box-shadow: var(--shadow-lg);
-    z-index: 100;
-    transition:
-      transform var(--transition-fast),
-      box-shadow var(--transition-fast);
+    width: 88px;
+    height: 88px;
+    border-radius: var(--border-radius-full);
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
   }
 
-  .fab:hover {
-    transform: scale(1.1);
-    box-shadow: var(--shadow-xl);
-  }
-
-  @supports (padding-bottom: env(safe-area-inset-bottom)) {
-    .fab {
-      bottom: calc(
-        var(--nav-height) + env(safe-area-inset-bottom) + var(--space-lg)
-      );
-    }
+  .empty-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-sm);
   }
 </style>

@@ -1,103 +1,99 @@
 /* ==============================================
-   RECEPTEN APP - Design System voor Senioren (65+)
+   RECEPTEN APP - Design System
+   Licht en warm, donkere tekst, één frisse accentkleur (basilicumgroen).
+   Leesbaarheid en bedieningsgemak gaan voor op verfijning.
    ============================================== */
 
 :root {
-  /* ============ COLOR PALETTE ============ */
-  /* Primary - Warm green for appetite/freshness */
-  --color-primary: #2E7D32;
-  --color-primary-light: #4CAF50;
-  --color-primary-dark: #1B5E20;
+  /* ============ KLEUREN ============ */
+  /* Accent: basilicumgroen. Contrast met wit ≈ 6:1, met de crèmekleurige achtergrond ≈ 5,6:1. */
+  --color-primary: #2C6E49;
+  --color-primary-light: #3F8A5F;
+  --color-primary-dark: #1F5236;
+  /* Zachte tint van het accent voor geselecteerde en actieve vlakken. */
+  --color-primary-soft: #E2EEE5;
+  --color-focus-ring: rgba(44, 110, 73, 0.28);
 
-  /* Background - Off-white for reduced eye strain */
-  --color-bg: #FAFAFA;
+  /* Achtergrond: warm crème, kaarten wit */
+  --color-bg: #FAF6EF;
   --color-bg-card: #FFFFFF;
-  --color-bg-hover: #F5F5F5;
-  --bg-image: linear-gradient(135deg, #FAFAFA 0%, #F1F8E9 100%);
+  --color-bg-hover: #F3EDE3;
+  --color-bg-subtle: #F3EEE5;
+  --bg-image: none;
 
-  /* Text - High contrast for readability */
-  --color-text: #212121;
-  --color-text-secondary: #424242;
-  --color-text-muted: #757575;
-  --color-text-placeholder: #A0A0A0;
+  /* Tekst: alle tinten halen minimaal 4,5:1 op wit én op crème */
+  --color-text: #221E1A;
+  --color-text-secondary: #463F38;
+  --color-text-muted: #5C534A;
+  --color-text-placeholder: #72685D;
   --color-text-on-primary: #FFFFFF;
 
-  /* Accent colors */
-  --color-favorite: #E65100;
-  --color-error: #C62828;
-  --color-success: #2E7D32;
-  --color-warning: #F57F17;
+  /* Status */
+  --color-favorite: #B04A0C;
+  --color-favorite-soft: #FBEBDD;
+  --color-error: #B42318;
+  --color-error-soft: #FDECEA;
+  --color-success: #2C6E49;
+  --color-warning: #F2B33D;
 
-  /* Borders */
-  --color-border: #E0E0E0;
-  --color-border-focus: #2E7D32;
+  /* Randen: decoratief en voor bedieningselementen (minimaal 3:1) */
+  --color-border: #E5DDD0;
+  --color-border-strong: #857A6D;
+  --color-border-focus: #2C6E49;
 
-  /* ============ TYPOGRAPHY ============ */
-  /* Large base font for readability */
-  --font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* ============ TYPOGRAFIE ============ */
+  /* Lexend is ontworpen voor vlot lezen (grote x-hoogte, open vormen, gewone nul in "500 g");
+     Fraunces geeft titels warmte. */
+  --font-family: 'Lexend', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-family-display: 'Fraunces', Georgia, 'Times New Roman', serif;
 
-  --font-size-xs: 1rem;
-  /* 16px - smallest readable */
-  --font-size-sm: 1.125rem;
-  /* 18px */
-  --font-size-base: 1.25rem;
-  /* 20px - body text */
-  --font-size-lg: 1.5rem;
-  /* 24px */
-  --font-size-xl: 1.875rem;
-  /* 30px */
-  --font-size-2xl: 2.25rem;
-  /* 36px */
-  --font-size-3xl: 3rem;
-  /* 48px */
+  --font-size-xs: 1rem;        /* 16px - kleinste tekst */
+  --font-size-sm: 1.0625rem;   /* 17px - labels */
+  --font-size-base: 1.125rem;  /* 18px - lopende tekst, ingrediënten, stappen */
+  --font-size-lg: 1.375rem;    /* 22px */
+  --font-size-xl: 1.75rem;     /* 28px */
+  --font-size-2xl: 2.25rem;    /* 36px */
+  --font-size-3xl: 2.75rem;    /* 44px */
 
   --font-weight-normal: 400;
-  --font-weight-medium: 500;
+  --font-weight-medium: 600;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
-  --line-height-tight: 1.25;
+  --line-height-tight: 1.2;
   --line-height-normal: 1.5;
-  --line-height-relaxed: 1.75;
+  --line-height-relaxed: 1.7;
 
-  /* ============ SPACING ============ */
-  /* Extra generous spacing for touch */
-  --space-xs: 0.5rem;
-  /* 8px */
-  --space-sm: 0.75rem;
-  /* 12px */
-  --space-md: 1rem;
-  /* 16px */
-  --space-lg: 1.5rem;
-  /* 24px */
-  --space-xl: 2rem;
-  /* 32px */
-  --space-2xl: 3rem;
-  /* 48px */
-  --space-3xl: 4rem;
-  /* 64px */
+  /* ============ RUIMTE ============ */
+  --space-xs: 0.5rem;   /* 8px */
+  --space-sm: 0.75rem;  /* 12px */
+  --space-md: 1rem;     /* 16px */
+  --space-lg: 1.5rem;   /* 24px */
+  --space-xl: 2rem;     /* 32px */
+  --space-2xl: 3rem;    /* 48px */
+  --space-3xl: 4rem;    /* 64px */
 
-  /* ============ TOUCH TARGETS ============ */
-  /* Minimum 48px for accessibility */
+  /* ============ TIKVLAKKEN ============ */
+  /* Minimaal 44px is de eis; we houden 48px aan. */
   --touch-target-min: 48px;
   --touch-target-comfortable: 56px;
   --touch-target-large: 64px;
 
-  /* ============ BORDERS & SHADOWS ============ */
+  /* ============ RANDEN & SCHADUWEN ============ */
   --border-radius-sm: 8px;
   --border-radius-md: 12px;
-  --border-radius-lg: 16px;
+  --border-radius-lg: 18px;
   --border-radius-xl: 24px;
   --border-radius-full: 9999px;
 
   --border-width: 2px;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
-  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.15);
+  --shadow-sm: 0 1px 2px rgba(60, 40, 20, 0.06), 0 1px 3px rgba(60, 40, 20, 0.08);
+  --shadow-md: 0 4px 16px rgba(60, 40, 20, 0.08);
+  --shadow-lg: 0 12px 32px rgba(60, 40, 20, 0.12);
+  --shadow-xl: 0 20px 48px rgba(60, 40, 20, 0.18);
 
-  /* ============ TRANSITIONS ============ */
+  /* ============ OVERGANGEN ============ */
   --transition-fast: 150ms ease;
   --transition-normal: 250ms ease;
   --transition-slow: 400ms ease;
@@ -110,25 +106,27 @@
   --z-toast: 500;
 
   /* ============ LAYOUT ============ */
-  --header-height: 72px;
-  --nav-height: 100px;
-  --container-max: 1200px;
-  --content-padding: var(--space-lg);
+  --header-height: 68px;
+  --nav-height: 76px;
+  --container-max: 1120px;
+  --content-padding: clamp(1rem, 4vw, 2rem);
 }
 
-/* High Contrast Mode */
-@media (prefers-contrast: high) {
+/* Hoog contrast */
+@media (prefers-contrast: more) {
   :root {
-    --color-primary: #1B5E20;
+    --color-primary: #1A4A30;
     --color-text: #000000;
     --color-text-secondary: #000000;
+    --color-text-muted: #2A2520;
     --color-bg: #FFFFFF;
     --color-border: #000000;
+    --color-border-strong: #000000;
     --border-width: 3px;
   }
 }
 
-/* Reduced Motion */
+/* Minder beweging */
 @media (prefers-reduced-motion: reduce) {
   :root {
     --transition-fast: 0ms;
@@ -137,40 +135,57 @@
   }
 }
 
-/* Dark Mode Support */
-/* Dark Mode Support - Attribute based (Manual Toggle) & Media Query (System Default) */
+/* Donker thema: systeemvoorkeur, tenzij licht expliciet is gekozen */
 [data-theme="dark"],
 :root:not([data-theme="light"]) {
   @media (prefers-color-scheme: dark) {
-    --color-bg: #121212;
-    --color-bg-card: #1E1E1E;
-    --color-bg-hover: #2D2D2D;
-    --color-text: #F5F5F5;
-    --color-text-secondary: #E0E0E0;
-    --color-text-muted: #BDBDBD;
-    --color-text-placeholder: #757575;
-    --color-border: #424242;
-    --color-primary: #4CAF50;
-    --color-primary-light: #81C784;
-    --color-primary-dark: #2E7D32;
-    --color-border-focus: #4CAF50;
+    --color-bg: #191613;
+    --color-bg-card: #24201C;
+    --color-bg-hover: #2F2A25;
+    --color-bg-subtle: #2A2520;
+    --color-text: #F5F0E8;
+    --color-text-secondary: #DDD4C8;
+    --color-text-muted: #C6BCAE;
+    --color-text-placeholder: #A0968A;
+    --color-text-on-primary: #10241A;
+    --color-border: #3F3832;
+    --color-border-strong: #958A7D;
+    --color-primary: #86CDA2;
+    --color-primary-light: #A6DDBB;
+    --color-primary-dark: #A6DDBB;
+    --color-primary-soft: #203328;
+    --color-focus-ring: rgba(134, 205, 162, 0.35);
+    --color-border-focus: #86CDA2;
+    --color-favorite: #F5A266;
+    --color-favorite-soft: #3A2A1E;
+    --color-error: #F59C92;
+    --color-error-soft: #3B2220;
     --bg-image: none;
   }
 }
 
-/* Explicit Dark Theme (Overrides system preference if set via JS) */
+/* Expliciet donker thema (overschrijft de systeemvoorkeur) */
 [data-theme="dark"] {
-  --color-bg: #121212;
-  --color-bg-card: #1E1E1E;
-  --color-bg-hover: #2D2D2D;
-  --color-text: #F5F5F5;
-  --color-text-secondary: #E0E0E0;
-  --color-text-muted: #BDBDBD;
-  --color-text-placeholder: #757575;
-  --color-border: #424242;
-  --color-primary: #4CAF50;
-  --color-primary-light: #81C784;
-  --color-primary-dark: #2E7D32;
-  --color-border-focus: #4CAF50;
+  --color-bg: #191613;
+  --color-bg-card: #24201C;
+  --color-bg-hover: #2F2A25;
+  --color-bg-subtle: #2A2520;
+  --color-text: #F5F0E8;
+  --color-text-secondary: #DDD4C8;
+  --color-text-muted: #C6BCAE;
+  --color-text-placeholder: #A0968A;
+  --color-text-on-primary: #10241A;
+  --color-border: #3F3832;
+  --color-border-strong: #958A7D;
+  --color-primary: #86CDA2;
+  --color-primary-light: #A6DDBB;
+  --color-primary-dark: #A6DDBB;
+  --color-primary-soft: #203328;
+  --color-focus-ring: rgba(134, 205, 162, 0.35);
+  --color-border-focus: #86CDA2;
+  --color-favorite: #F5A266;
+  --color-favorite-soft: #3A2A1E;
+  --color-error: #F59C92;
+  --color-error-soft: #3B2220;
   --bg-image: none;
 }

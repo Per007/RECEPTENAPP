@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { Recipe } from "$lib/db/types";
-  import { getCategoryIcon } from "$lib/db/types";
+  import { getCategoryIcon, getCategoryLabel } from "$lib/db/types";
   import { base } from "$app/paths";
+  import Icon from "./Icon.svelte";
 
   interface Props {
     recipe: Recipe;
@@ -11,86 +12,105 @@
 
   let { recipe, onFavoriteClick, variant = "default" }: Props = $props();
 
-  function handleFavoriteClick(e: MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    onFavoriteClick?.(recipe.id);
-  }
+  const hasPhoto = $derived(recipe.photos && recipe.photos.length > 0);
 </script>
 
-<a
-  href="{base}/recepten/{recipe.id}"
-  class="card"
-  class:compact={variant === "compact"}
->
-  <div class="card-image">
-    {#if recipe.photos && recipe.photos.length > 0}
-      <img src={recipe.photos[0]} alt={recipe.title} loading="lazy" />
-    {:else}
-      <div class="card-placeholder">
-        <span class="placeholder-icon">{getCategoryIcon(recipe.category)}</span>
-      </div>
-    {/if}
-    <button
-      class="favorite-btn"
-      class:is-favorite={recipe.isFavorite}
-      onclick={handleFavoriteClick}
-      aria-label={recipe.isFavorite
-        ? "Verwijder uit favorieten"
-        : "Voeg toe aan favorieten"}
-    >
-      {recipe.isFavorite ? "★" : "☆"}
-    </button>
-  </div>
-
-  <div class="card-content">
-    <h3 class="card-title">{recipe.title}</h3>
-    <div class="card-meta">
-      <span class="category">
-        {getCategoryIcon(recipe.category)}
-      </span>
-      {#if recipe.cookTime}
-        <span class="time">
-          ⏱️ {recipe.cookTime} min
-        </span>
+<!-- De favorietknop staat naast de link (niet erin): een knop in een link is ongeldig en verwarrend. -->
+<article class="card" class:compact={variant === "compact"}>
+  <a href="{base}/recepten/{recipe.id}" class="card-link">
+    <div class="card-image" class:placeholder={!hasPhoto}>
+      {#if hasPhoto}
+        <img src={recipe.photos[0]} alt="" loading="lazy" />
+      {:else}
+        <span class="placeholder-icon" aria-hidden="true"
+          >{getCategoryIcon(recipe.category)}</span
+        >
       {/if}
     </div>
-  </div>
-</a>
+
+    <div class="card-content">
+      <h3 class="card-title">{recipe.title}</h3>
+      <p class="card-meta">
+        <span class="meta-item">
+          <span aria-hidden="true">{getCategoryIcon(recipe.category)}</span>
+          {getCategoryLabel(recipe.category)}
+        </span>
+        {#if recipe.cookTime}
+          <span class="meta-item">
+            <Icon name="clock" size={20} />
+            {recipe.cookTime} min
+          </span>
+        {/if}
+        {#if recipe.isFavorite}
+          <span class="meta-item favorite-label">
+            <Icon name="star" size={20} filled />
+            Favoriet
+          </span>
+        {/if}
+      </p>
+    </div>
+  </a>
+
+  {#if onFavoriteClick}
+    <button
+      type="button"
+      class="favorite-btn"
+      class:is-favorite={recipe.isFavorite}
+      onclick={() => onFavoriteClick?.(recipe.id)}
+      aria-pressed={recipe.isFavorite}
+      aria-label="Favoriet: {recipe.title}"
+      title={recipe.isFavorite ? "Uit favorieten halen" : "Favoriet maken"}
+    >
+      <Icon name="star" size={26} filled={recipe.isFavorite} />
+    </button>
+  {/if}
+</article>
 
 <style>
   .card {
-    display: block;
+    position: relative;
+    display: flex;
     background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
     border-radius: var(--border-radius-lg);
-    overflow: hidden;
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-sm);
     transition:
-      transform var(--transition-fast),
-      box-shadow var(--transition-fast);
-    text-decoration: none;
-    color: inherit;
+      box-shadow var(--transition-fast),
+      border-color var(--transition-fast);
   }
 
   .card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-border-strong);
   }
 
-  .card:focus-visible {
-    outline: 3px solid var(--color-border-focus);
+  .card-link {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    color: inherit;
+    text-decoration: none;
+    border-radius: inherit;
+  }
+
+  .card-link:focus-visible {
     outline-offset: 2px;
+  }
+
+  /* Titel onderstrepen bij aanwijzen: zo is te zien dat de kaart een link is */
+  .card-link:hover .card-title {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.18em;
   }
 
   .card-image {
     position: relative;
-    aspect-ratio: 4 / 3;
+    aspect-ratio: 3 / 2;
     overflow: hidden;
-    background: var(--color-bg-hover);
-  }
-
-  .card.compact .card-image {
-    aspect-ratio: 2.5 / 1;
+    border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+    background: var(--color-bg-subtle);
   }
 
   .card-image img {
@@ -99,100 +119,129 @@
     object-fit: cover;
   }
 
-  .card-placeholder {
-    width: 100%;
-    height: 100%;
+  .card-image.placeholder {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(
-      135deg,
-      var(--color-primary-light) 0%,
-      var(--color-primary) 100%
-    );
+    background:
+      radial-gradient(circle at 30% 20%, var(--color-primary-soft), transparent 60%),
+      var(--color-bg-subtle);
   }
 
   .placeholder-icon {
-    font-size: 4rem;
-    opacity: 0.8;
+    font-size: 3rem;
+    opacity: 0.85;
   }
 
-  .card.compact .placeholder-icon {
-    font-size: 2.5rem;
+  .card-content {
+    padding: var(--space-md) var(--space-md) var(--space-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
   }
 
+  .card-title {
+    font-size: var(--font-size-lg);
+    line-height: 1.25;
+    /* Ruimte voor de favorietknop rechtsboven op smalle schermen */
+    overflow-wrap: anywhere;
+  }
+
+  .card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs) var(--space-md);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
+  .meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .favorite-label {
+    color: var(--color-favorite);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  /* Favoriet: rond, ruim tikvlak, ster vol of leeg (vorm, niet alleen kleur) */
   .favorite-btn {
     position: absolute;
     top: var(--space-sm);
     right: var(--space-sm);
     width: var(--touch-target-min);
     height: var(--touch-target-min);
-    border: none;
-    border-radius: var(--border-radius-full);
-    background: rgba(255, 255, 255, 0.9);
-    font-size: 1.5rem;
-    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: transform var(--transition-fast);
-    color: var(--color-text-muted);
-  }
-
-  .card.compact .favorite-btn {
-    width: 36px;
-    height: 36px;
-    font-size: 1.2rem;
+    border-radius: var(--border-radius-full);
+    border: var(--border-width) solid var(--color-border-strong);
+    background: var(--color-bg-card);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition:
+      background-color var(--transition-fast),
+      color var(--transition-fast);
   }
 
   .favorite-btn:hover {
-    transform: scale(1.1);
+    background: var(--color-favorite-soft);
+    color: var(--color-favorite);
   }
 
   .favorite-btn.is-favorite {
     color: var(--color-favorite);
+    border-color: var(--color-favorite);
+    background: var(--color-favorite-soft);
   }
 
-  .card-content {
-    padding: var(--space-md);
+  /* ---- Smal scherm: lijstweergave, sneller scannen ---- */
+  @media (max-width: 599px) {
+    .card:not(.compact) .card-link {
+      flex-direction: row;
+      align-items: stretch;
+    }
+
+    .card:not(.compact) .card-image {
+      flex: 0 0 104px;
+      aspect-ratio: auto;
+      min-height: 104px;
+      border-radius: var(--border-radius-lg) 0 0 var(--border-radius-lg);
+    }
+
+    .card:not(.compact) .placeholder-icon {
+      font-size: 2.25rem;
+    }
+
+    .card:not(.compact) .card-content {
+      flex: 1;
+      justify-content: center;
+      padding: var(--space-sm) var(--space-md);
+      /* Rechts ruimte voor de favorietknop */
+      padding-right: calc(var(--touch-target-min) + var(--space-md));
+    }
+
+    .card:not(.compact) .favorite-btn {
+      top: 50%;
+      transform: translateY(-50%);
+    }
   }
 
-  .card.compact .card-content {
-    padding: var(--space-sm) var(--space-md);
+  /* ---- Compact (startpagina): lagere foto ---- */
+  .compact .card-image {
+    aspect-ratio: 2 / 1;
   }
 
-  .card-title {
-    font-size: var(--font-size-lg);
-    margin: 0 0 var(--space-sm) 0;
-    line-height: var(--line-height-tight);
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+  .compact .card-content {
+    padding: var(--space-sm) var(--space-md) var(--space-md);
   }
 
-  .card.compact .card-title {
+  .compact .card-title {
     font-size: var(--font-size-base);
-    margin-bottom: var(--space-xs);
-  }
-
-  .card-meta {
-    display: flex;
-    align-items: center;
-    gap: var(--space-md);
-    font-size: var(--font-size-sm);
-    color: var(--color-text-secondary);
-  }
-
-  .card.compact .card-meta {
-    font-size: var(--font-size-xs);
-  }
-
-  .category,
-  .time {
-    display: flex;
-    align-items: center;
-    gap: var(--space-xs);
+    font-family: var(--font-family);
+    font-weight: var(--font-weight-bold);
   }
 </style>

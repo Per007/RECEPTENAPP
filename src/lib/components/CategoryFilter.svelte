@@ -1,5 +1,6 @@
 <script lang="ts">
   import { CATEGORIES, type RecipeCategory } from "$lib/db/types";
+  import Icon from "./Icon.svelte";
 
   interface Props {
     selected: RecipeCategory | "all";
@@ -9,103 +10,121 @@
 
   let { selected = $bindable(), counts = {}, onSelect }: Props = $props();
 
+  // Alleen soorten waar recepten in staan; een lege soort kiezen levert niets op.
+  // De gekozen soort blijft altijd zichtbaar, zodat u hem weer kunt uitzetten.
+  const options = $derived([
+    { value: "all" as const, label: "Alles", icon: "" },
+    ...CATEGORIES.filter((c) => counts[c.value] || selected === c.value),
+  ]);
+
   function handleSelect(category: RecipeCategory | "all") {
     selected = category;
     onSelect?.(category);
   }
 </script>
 
-<div class="category-filter" role="tablist" aria-label="Categorieën filter">
-  <button
-    role="tab"
-    class="category-btn"
-    class:active={selected === "all"}
-    onclick={() => handleSelect("all")}
-    aria-selected={selected === "all"}
-  >
-    <span class="category-icon">📋</span>
-    <span class="category-label">Alles</span>
-    {#if counts["all"]}
-      <span class="category-count">{counts["all"]}</span>
-    {/if}
-  </button>
-
-  {#each CATEGORIES as category}
-    <button
-      role="tab"
-      class="category-btn"
-      class:active={selected === category.value}
-      onclick={() => handleSelect(category.value)}
-      aria-selected={selected === category.value}
-    >
-      <span class="category-icon">{category.icon}</span>
-      <span class="category-label">{category.label}</span>
-      {#if counts[category.value]}
-        <span class="category-count">{counts[category.value]}</span>
-      {/if}
-    </button>
-  {/each}
+<div class="category-filter" role="group" aria-labelledby="filter-label">
+  <p id="filter-label" class="filter-label">Soort gerecht</p>
+  <div class="chips">
+    {#each options as option (option.value)}
+      {@const active = selected === option.value}
+      <button
+        type="button"
+        class="chip"
+        class:active
+        aria-pressed={active}
+        onclick={() => handleSelect(option.value)}
+      >
+        {#if active}
+          <Icon name="check" size={20} strokeWidth={3} />
+        {:else if option.icon}
+          <span class="chip-icon" aria-hidden="true">{option.icon}</span>
+        {/if}
+        <span>{option.label}</span>
+        {#if counts[option.value]}
+          <span class="chip-count"
+            >{counts[option.value]}<span class="sr-only"> recepten</span></span
+          >
+        {/if}
+      </button>
+    {/each}
+  </div>
 </div>
 
 <style>
-  .category-filter {
-    display: flex;
-    gap: var(--space-sm);
-    overflow-x: auto;
-    padding: var(--space-sm) 0;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+  .filter-label {
+    font-weight: var(--font-weight-semibold);
+    margin-bottom: var(--space-xs);
   }
 
-  .category-filter::-webkit-scrollbar {
-    display: none;
+  /* Knoppen lopen door op de volgende regel: niets verdwijnt buiten beeld */
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
   }
 
-  .category-btn {
-    display: flex;
-    flex-direction: column;
+  .chip {
+    display: inline-flex;
     align-items: center;
     gap: var(--space-xs);
-    padding: var(--space-md);
-    min-width: 90px;
-    border: var(--border-width) solid var(--color-border);
-    border-radius: var(--border-radius-lg);
-    background: var(--color-bg-card);
-    cursor: pointer;
-    transition: all var(--transition-fast);
-    flex-shrink: 0;
-    color: var(--color-text);
-  }
-
-  .category-btn:hover {
-    border-color: var(--color-primary);
-    background: var(--color-bg-hover);
-  }
-
-  .category-btn.active {
-    border-color: var(--color-primary);
-    background: var(--color-primary);
-    color: var(--color-text-on-primary);
-  }
-
-  .category-icon {
-    font-size: 1.75rem;
-  }
-
-  .category-label {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    white-space: nowrap;
-  }
-
-  .category-count {
-    font-size: var(--font-size-xs);
-    background: rgba(0, 0, 0, 0.1);
-    padding: 2px 8px;
+    min-height: var(--touch-target-min);
+    padding: var(--space-xs) var(--space-md);
+    border: var(--border-width) solid var(--color-border-strong);
     border-radius: var(--border-radius-full);
+    background: var(--color-bg-card);
+    color: var(--color-text);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-normal);
+    cursor: pointer;
+    transition:
+      background-color var(--transition-fast),
+      border-color var(--transition-fast);
   }
 
-  .category-btn.active .category-count {
-    background: rgba(255, 255, 255, 0.2);
+  .chip:hover:not(.active) {
+    background: var(--color-bg-hover);
+    border-color: var(--color-text);
+  }
+
+  .chip-icon {
+    font-size: 1.15em;
+    line-height: 1;
+  }
+
+  .chip-count {
+    min-width: 1.75em;
+    padding: 0 6px;
+    border-radius: var(--border-radius-full);
+    background: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    text-align: center;
+  }
+
+  /* Gekozen: gevuld, vet én een vinkje — niet alleen een andere kleur */
+  .chip.active {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--color-text-on-primary);
+    font-weight: var(--font-weight-bold);
+  }
+
+  /* Smal scherm: iets compacter, zodat meer soorten op één regel passen */
+  @media (max-width: 599px) {
+    .chips {
+      gap: 6px;
+    }
+
+    .chip {
+      gap: 6px;
+      padding: 4px var(--space-sm);
+    }
+  }
+
+  .chip.active .chip-count {
+    background: rgba(255, 255, 255, 0.22);
+    color: inherit;
   }
 </style>

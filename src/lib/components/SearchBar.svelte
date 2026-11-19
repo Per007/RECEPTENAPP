@@ -1,12 +1,26 @@
 <script lang="ts">
+  import Icon from "./Icon.svelte";
+
   interface Props {
     value: string;
     placeholder?: string;
+    /** Zichtbaar label boven het zoekveld. */
+    label?: string;
+    id?: string;
     onInput?: (value: string) => void;
     onClear?: () => void;
   }
 
-  let { value = $bindable(), placeholder = 'Zoeken...', onInput, onClear }: Props = $props();
+  let {
+    value = $bindable(),
+    placeholder = "Zoeken...",
+    label,
+    id = "zoeken",
+    onInput,
+    onClear,
+  }: Props = $props();
+
+  let input = $state<HTMLInputElement>();
 
   function handleInput(e: Event) {
     const target = e.target as HTMLInputElement;
@@ -15,33 +29,46 @@
   }
 
   function handleClear() {
-    value = '';
+    value = "";
     onClear?.();
+    input?.focus();
   }
 </script>
 
-<div class="search-container">
-  <span class="search-icon" aria-hidden="true">🔍</span>
-  <input
-    type="search"
-    class="search-input"
-    {placeholder}
-    {value}
-    oninput={handleInput}
-    aria-label="Zoeken in recepten"
-  />
-  {#if value}
-    <button 
-      class="clear-btn" 
-      onclick={handleClear}
-      aria-label="Zoekopdracht wissen"
-    >
-      ✕
-    </button>
+<div class="search">
+  {#if label}
+    <label class="search-label" for={id}>{label}</label>
   {/if}
+  <div class="search-container">
+    <span class="search-icon"><Icon name="search" size={24} /></span>
+    <input
+      bind:this={input}
+      {id}
+      type="search"
+      class="search-input"
+      class:has-value={!!value}
+      {placeholder}
+      {value}
+      oninput={handleInput}
+      aria-label={label ? undefined : "Zoeken in recepten"}
+      autocomplete="off"
+      enterkeyhint="search"
+    />
+    {#if value}
+      <button type="button" class="clear-btn" onclick={handleClear}>
+        <Icon name="x" size={20} />
+        Wissen
+      </button>
+    {/if}
+  </div>
 </div>
 
 <style>
+  .search-label {
+    font-size: var(--font-size-base);
+    margin-bottom: var(--space-xs);
+  }
+
   .search-container {
     position: relative;
     display: flex;
@@ -51,56 +78,50 @@
   .search-icon {
     position: absolute;
     left: var(--space-md);
-    font-size: var(--font-size-lg);
+    display: flex;
+    color: var(--color-text-muted);
     pointer-events: none;
   }
 
   .search-input {
-    width: 100%;
-    padding: var(--space-md);
-    padding-left: calc(var(--space-md) + 2rem);
-    padding-right: calc(var(--space-md) + 3rem);
-    font-size: var(--font-size-base);
-    border: var(--border-width) solid var(--color-border);
-    border-radius: var(--border-radius-lg);
-    background: var(--color-bg-card);
     min-height: var(--touch-target-comfortable);
-    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    padding-left: calc(var(--space-md) + 24px + var(--space-sm));
+    padding-right: var(--space-md);
+    border-radius: var(--border-radius-full);
+    font-size: var(--font-size-base);
+    box-shadow: var(--shadow-sm);
   }
 
-  .search-input:focus {
-    border-color: var(--color-border-focus);
-    box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.2);
-    outline: none;
+  /* Ruimte voor de knop "Wissen" alleen als die er staat */
+  .search-input.has-value {
+    padding-right: 7.5rem;
   }
 
-  .search-input::placeholder {
-    color: var(--color-text-muted);
-  }
-
-  /* Hide default search cancel button */
+  /* Eigen wisknop: de kleine browserknop is te klein om op te tikken */
   .search-input::-webkit-search-cancel-button {
-    display: none;
+    -webkit-appearance: none;
+    appearance: none;
   }
 
   .clear-btn {
     position: absolute;
-    right: var(--space-sm);
-    width: var(--touch-target-min);
-    height: var(--touch-target-min);
+    right: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: var(--touch-target-min);
+    padding: 0 var(--space-md);
     border: none;
     border-radius: var(--border-radius-full);
-    background: var(--color-bg-hover);
-    font-size: var(--font-size-base);
-    color: var(--color-text-secondary);
+    background: var(--color-bg-subtle);
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     transition: background-color var(--transition-fast);
   }
 
   .clear-btn:hover {
-    background: var(--color-border);
+    background: var(--color-bg-hover);
   }
 </style>
