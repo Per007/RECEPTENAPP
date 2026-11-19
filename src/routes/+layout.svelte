@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import "$lib/styles/global.css";
   import { loadRecipes, notice, error } from "$lib/stores/recipes";
+  import { startAutoRefresh } from "$lib/sync/refresh";
   import { bookCode, initBook } from "$lib/stores/book";
   import { goto } from "$app/navigation";
   import { theme } from "$lib/stores/theme";
@@ -62,20 +63,17 @@
       isOffline = false;
       loadRecipes();
     };
-    // Weer naar voren gehaald: kijk of een ander apparaat iets heeft gewijzigd.
-    const handleVisible = () => {
-      if (document.visibilityState === "visible") loadRecipes();
-    };
     const handleOffline = () => (isOffline = true);
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
-    document.addEventListener("visibilitychange", handleVisible);
+    // Kijk of een ander apparaat iets heeft gewijzigd (zichtbaar, focus, elke minuut).
+    const stopAutoRefresh = startAutoRefresh(loadRecipes);
 
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
-      document.removeEventListener("visibilitychange", handleVisible);
+      stopAutoRefresh();
     };
   });
 
