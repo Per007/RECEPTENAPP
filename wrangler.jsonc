@@ -13,7 +13,7 @@
 		{
 			"binding": "DB",
 			"database_name": "mijn-recepten",
-			"database_id": "LOCAL",
+			"database_id": "231df601-ea66-42a8-9254-a3e1127fbb37",
 			"migrations_dir": "migrations"
 		}
 	],

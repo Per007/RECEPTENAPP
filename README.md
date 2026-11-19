@@ -1,5 +1,7 @@
 # Mijn Recepten
 
+Live: https://mijn-recepten.receptenapp.workers.dev
+
 Een eenvoudige receptenapp voor ouderen. Recepten staan in een *receptenboek* op
 Cloudflare en zijn op elk gekoppeld apparaat te lezen en te wijzigen. Lezen werkt ook
 zonder internet; wijzigen vraagt internet.
