@@ -3,7 +3,12 @@ import { CATEGORIES, type Recipe, type RecipeCategory } from '$lib/db/types';
 import * as db from '$lib/db/database';
 import * as api from '$lib/api/client';
 import { ApiError, OfflineError } from '$lib/api/client';
-import type { RecipeInput } from '$lib/api/types';
+import {
+    MAX_PHOTO_BYTES,
+    MAX_PHOTOS_PER_RECIPE,
+    MAX_RECIPE_BYTES,
+    type RecipeInput
+} from '$lib/api/types';
 import { syncFromServer, toLocal } from '$lib/sync/sync';
 import { getBookCode } from './book';
 
@@ -17,6 +22,14 @@ export const SAVE_FAILED =
     'Bewaren is niet gelukt. Controleer de internetverbinding en probeer het opnieuw.';
 const LOAD_FAILED = 'Ophalen is niet gelukt. Je ziet de recepten van de vorige keer.';
 const UNREADABLE_FILE = 'Dit bestand kan niet worden gelezen.';
+
+/** Fout bij importeren met een melding die de gebruiker zo kan lezen. */
+export class ImportError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'ImportError';
+    }
+}
 
 // Main recipes store
 export const recipes = writable<Recipe[]>([]);
@@ -262,24 +275,51 @@ export async function exportRecipes(): Promise<void> {
 
 const CATEGORY_VALUES = new Set<string>(CATEGORIES.map(c => c.value));
 
+const BASE64_PHOTO = /^data:[^;,]+;base64,([A-Za-z0-9+/]*={0,2})$/;
+
+/** Zou de server dit recept aannemen? Zelfde grenzen als de Worker. */
+function fitsServerLimits(recipe: NewRecipe, createdAt?: Date): boolean {
+    if (recipe.photos.length > MAX_PHOTOS_PER_RECIPE) return false;
+    for (const photo of recipe.photos) {
+        const base64 = photo.match(BASE64_PHOTO)?.[1];
+        if (base64 === undefined || base64.length % 4 !== 0) return false;
+        const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+        if ((base64.length / 4) * 3 - padding > MAX_PHOTO_BYTES) return false;
+    }
+    const placeholderIds = recipe.photos.map(() => crypto.randomUUID());
+    return JSON.stringify(toInput(recipe, placeholderIds, createdAt)).length <= MAX_RECIPE_BYTES;
+}
+
 /** Leest een exportbestand (ook uit de oude app). Gooit bij een bestand dat niet klopt. */
 function parseImport(text: string): { recipe: NewRecipe; createdAt?: Date }[] {
+    const items = parseImportShape(text);
+    for (const { recipe, createdAt } of items) {
+        if (!fitsServerLimits(recipe, createdAt)) {
+            throw new ImportError(
+                `Het recept "${recipe.title}" in dit bestand is te groot of heeft te veel foto's. Er is niets ingelezen.`
+            );
+        }
+    }
+    return items;
+}
+
+function parseImportShape(text: string): { recipe: NewRecipe; createdAt?: Date }[] {
     let data: unknown;
     try {
         data = JSON.parse(text);
     } catch {
-        throw new Error(UNREADABLE_FILE);
+        throw new ImportError(UNREADABLE_FILE);
     }
     const list = (data as { recipes?: unknown } | null)?.recipes;
-    if (!Array.isArray(list)) throw new Error(UNREADABLE_FILE);
+    if (!Array.isArray(list)) throw new ImportError(UNREADABLE_FILE);
 
     const text_ = (value: unknown) => (typeof value === 'string' && value ? value : undefined);
     const number_ = (value: unknown) => (typeof value === 'number' ? value : undefined);
 
     return list.map((item) => {
-        if (typeof item !== 'object' || item === null) throw new Error(UNREADABLE_FILE);
+        if (typeof item !== 'object' || item === null) throw new ImportError(UNREADABLE_FILE);
         const r = item as Record<string, unknown>;
-        if (typeof r.title !== 'string' || !r.title.trim()) throw new Error(UNREADABLE_FILE);
+        if (typeof r.title !== 'string' || !r.title.trim()) throw new ImportError(UNREADABLE_FILE);
 
         const created = typeof r.createdAt === 'string' ? new Date(r.createdAt) : undefined;
         const recipe: NewRecipe = {
@@ -312,10 +352,26 @@ export async function importRecipes(
     const items = parseImport(await file.text());
     const call = retrying(options.retryDelayMs ?? 15000);
 
-    if (mode === 'replace') await deleteAllRecipes(call);
+    // Bij vervangen: onthoud wat er nu staat, maar verwijder het pas als alles is ingelezen.
+    const oldIds = mode === 'replace' ? (await call(() => api.listRecipes())).map(r => r.id) : [];
 
-    for (const { recipe, createdAt } of items) {
-        await createRecipe(recipe, createdAt, call);
+    let imported = 0;
+    try {
+        for (const { recipe, createdAt } of items) {
+            await createRecipe(recipe, createdAt, call);
+            imported++;
+        }
+    } catch (e) {
+        console.error(e);
+        throw new ImportError(
+            `Er zijn ${imported} van de ${items.length} recepten ingelezen. Daarna lukte het niet meer. Controleer de internetverbinding en probeer het opnieuw.`
+        );
+    }
+
+    for (const id of oldIds) {
+        await call(() => api.removeRecipe(id));
+        await db.deleteRecipe(id);
+        recipes.update(r => r.filter(recipe => recipe.id !== id));
     }
     return items.length;
 }

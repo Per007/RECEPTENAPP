@@ -33,6 +33,7 @@ import {
 	importRecipes,
 	deleteAllRecipes,
 	SAVE_FAILED,
+	ImportError,
 	type NewRecipe
 } from './recipes';
 
@@ -295,16 +296,63 @@ describe('importRecipes', () => {
 		expect(await db.getAllRecipes()).toHaveLength(1);
 	});
 
-	it('vervangen verwijdert eerst alles wat op de server staat', async () => {
+	it('vervangen leest eerst alles in en verwijdert pas daarna de oude recepten', async () => {
 		const original = await addRecipe(soep);
 		mocked.listRecipes.mockResolvedValue([serverSave(original.id, { ...soep, photoIds: [] } as never)]);
 		calls.length = 0;
 
 		await importRecipes(file(oldExport), 'replace');
 
+		expect(mocked.removeRecipe).toHaveBeenCalledTimes(1);
 		expect(mocked.removeRecipe).toHaveBeenCalledWith(original.id);
-		expect(calls[0]).toBe('remove');
+		expect(calls.at(-1)).toBe('remove');
+		expect(calls.indexOf('remove')).toBeGreaterThan(calls.lastIndexOf('save'));
 		expect(get(recipes).map((r) => r.title).sort()).toEqual(['Appeltaart', 'Thee']);
+		expect((await db.getAllRecipes()).map((r) => r.title).sort()).toEqual(['Appeltaart', 'Thee']);
+	});
+
+	const recipeWith = (extra: Record<string, unknown>) =>
+		JSON.stringify({
+			recipes: [
+				{ title: 'Soep', category: 'soep', photos: [] },
+				{ title: 'Grote taart', category: 'dessert', photos: [], ...extra }
+			]
+		});
+	const TOO_BIG = 'Het recept "Grote taart" in dit bestand is te groot of heeft te veel foto\'s. Er is niets ingelezen.';
+
+	it.each([
+		['21 fotos', { photos: Array.from({ length: 21 }, () => 'data:image/jpeg;base64,/9j/') }],
+		['een kapotte foto', { photos: ['data:image/jpeg;base64,dit is geen base64!'] }],
+		['een foto boven 1.500.000 bytes', { photos: ['data:image/jpeg;base64,' + 'A'.repeat(2_000_004)] }],
+		['te veel tekst', { notes: 'x'.repeat(200_001) }]
+	])('weigert een bestand met %s voordat er iets verandert', async (_name, extra) => {
+		const original = await addRecipe(soep);
+		mocked.listRecipes.mockResolvedValue([serverSave(original.id, { ...soep, photoIds: [] } as never)]);
+		vi.clearAllMocks();
+
+		await expect(importRecipes(file(recipeWith(extra)), 'replace')).rejects.toThrow(TOO_BIG);
+
+		expect(mocked.saveRecipe).not.toHaveBeenCalled();
+		expect(mocked.uploadPhoto).not.toHaveBeenCalled();
+		expect(mocked.removeRecipe).not.toHaveBeenCalled();
+		expect(await db.getAllRecipes()).toHaveLength(1);
+	});
+
+	it('laat bij een fout halverwege de oude recepten staan en meldt hoeveel er zijn ingelezen', async () => {
+		const original = await addRecipe(soep);
+		mocked.listRecipes.mockResolvedValue([serverSave(original.id, { ...soep, photoIds: [] } as never)]);
+		mocked.saveRecipe
+			.mockImplementationOnce(async (id, input) => serverSave(id, input))
+			.mockRejectedValueOnce(new OfflineError());
+
+		const error = await importRecipes(file(oldExport), 'replace').catch((e) => e);
+
+		expect(error).toBeInstanceOf(ImportError);
+		expect(error.message).toBe(
+			'Er zijn 1 van de 2 recepten ingelezen. Daarna lukte het niet meer. Controleer de internetverbinding en probeer het opnieuw.'
+		);
+		expect(mocked.removeRecipe).not.toHaveBeenCalled();
+		expect((await db.getAllRecipes()).map((r) => r.title).sort()).toEqual(['Appeltaart', 'Erwtensoep']);
 	});
 
 	it('wacht en probeert opnieuw als de server even te druk is (429)', async () => {

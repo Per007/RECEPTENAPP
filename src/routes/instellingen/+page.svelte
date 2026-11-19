@@ -5,6 +5,7 @@
     exportRecipes,
     importRecipes,
     deleteAllRecipes,
+    ImportError,
     recipes,
   } from "$lib/stores/recipes";
   import { bookCode } from "$lib/stores/book";
@@ -84,7 +85,7 @@
       statusType = "success";
     } catch (error) {
       statusMessage =
-        error instanceof Error && error.message === "Dit bestand kan niet worden gelezen."
+        error instanceof ImportError
           ? `✕ ${error.message}`
           : NO_CONNECTION;
       statusType = "error";
