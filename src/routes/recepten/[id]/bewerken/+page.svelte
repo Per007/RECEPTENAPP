@@ -4,10 +4,11 @@
   import { base } from "$app/paths";
   import { onMount } from "svelte";
   import { getRecipe } from "$lib/db/database";
-  import { updateRecipe, deleteRecipe, SAVE_FAILED } from "$lib/stores/recipes";
+  import { updateRecipe, deleteRecipe, saveErrorMessage } from "$lib/stores/recipes";
   import { CATEGORIES, type Recipe, type RecipeCategory } from "$lib/db/types";
   import Button from "$lib/components/Button.svelte";
   import PhotoCapture from "$lib/components/PhotoCapture.svelte";
+  import { MAX_PHOTOS_PER_RECIPE } from "$lib/api/types";
 
   let recipe = $state<Recipe | null>(null);
   let isLoading = $state(true);
@@ -98,7 +99,7 @@
       console.log("Recipe updated successfully");
       goto(`${base}/recepten/${recipeId}`);
     } catch (error) {
-      errorMessage = SAVE_FAILED;
+      errorMessage = saveErrorMessage(error);
       console.error(error);
     } finally {
       isSubmitting = false;
@@ -175,7 +176,11 @@
 
         <div class="form-group">
           <label>Foto's</label>
-          <PhotoCapture onCapture={handlePhotoCapture} />
+          {#if photos.length < MAX_PHOTOS_PER_RECIPE}
+            <PhotoCapture onCapture={handlePhotoCapture} />
+          {:else}
+            <p class="photo-limit">Maximaal {MAX_PHOTOS_PER_RECIPE} foto's per recept. Verwijder er een om een nieuwe toe te voegen.</p>
+          {/if}
 
           {#if photos.length > 0}
             <div class="photo-grid">

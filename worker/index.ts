@@ -1,7 +1,13 @@
 import { authenticate, createBook } from './books';
 import { fail, json } from './http';
 import { cleanupOrphanPhotos, getPhoto, uploadPhoto } from './photos';
-import { deleteRecipe, listRecipes, saveRecipe } from './recipes';
+import {
+	deleteAllRecipes,
+	deleteRecipe,
+	listRecipes,
+	saveRecipe,
+	setFavorite
+} from './recipes';
 
 export interface Env {
 	DB: D1Database;
@@ -18,7 +24,8 @@ const clientKey = (request: Request) => request.headers.get('CF-Connecting-IP') 
 const ID = '[A-Za-z0-9_-]{1,64}';
 const PHOTO = new RegExp(`^/api/photos/(${ID})$`);
 const RECIPE = new RegExp(`^/api/recipes/(${ID})$`);
-const RECIPE_PHOTO = new RegExp(`^/api/recipes/(${ID})/photos/(${ID})$`);
+const RECIPE_FAVORITE = new RegExp(`^/api/recipes/(${ID})/favorite$`);
+const RECIPE_PHOTO =new RegExp(`^/api/recipes/(${ID})/photos/(${ID})$`);
 
 async function handleApi(request: Request, env: Env): Promise<Response> {
 	const { pathname } = new URL(request.url);
@@ -47,6 +54,10 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
 
 	if (pathname === '/api/book' && method === 'GET') return json({ ok: true });
 	if (pathname === '/api/recipes' && method === 'GET') return listRecipes(env, bookId);
+	if (pathname === '/api/recipes' && method === 'DELETE') return deleteAllRecipes(env, bookId);
+	if (method === 'PUT' && (match = pathname.match(RECIPE_FAVORITE))) {
+		return setFavorite(request, env, bookId, match[1]);
+	}
 
 	if ((match = pathname.match(RECIPE))) {
 		if (method === 'PUT') return saveRecipe(request, env, bookId, match[1]);

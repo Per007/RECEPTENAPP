@@ -20,6 +20,26 @@ export type NewRecipe = Omit<Recipe, 'id' | 'createdAt' | 'updatedAt' | 'photoId
 
 export const SAVE_FAILED =
     'Bewaren is niet gelukt. Controleer de internetverbinding en probeer het opnieuw.';
+export const PHOTOS_TOO_MANY =
+    "Bewaren is niet gelukt: te veel of te grote foto's. Een recept kan maximaal 20 foto's hebben.";
+export const BOOK_FULL =
+    "Bewaren is niet gelukt: het receptenboek is vol. Verwijder eerst foto's die je niet meer nodig hebt.";
+export const CODE_UNKNOWN =
+    'Bewaren is niet gelukt: dit receptenboek bestaat niet meer. Ontkoppel dit apparaat via Instellingen.';
+export const RECIPE_GONE =
+    'Dit recept bestaat niet meer. Het is waarschijnlijk op een ander apparaat verwijderd.';
+
+/** Een melding die past bij wat er misging, in plaats van altijd "controleer de internetverbinding". */
+export function saveErrorMessage(e: unknown): string {
+    if (e instanceof ApiError) {
+        if (e.code === 'too_many_photos' || e.code === 'photo_too_large') return PHOTOS_TOO_MANY;
+        if (e.code === 'book_full') return BOOK_FULL;
+        if (e.status === 401) return CODE_UNKNOWN;
+        if (e.status === 404) return RECIPE_GONE;
+    }
+    return SAVE_FAILED;
+}
+
 const LOAD_FAILED = 'Ophalen is niet gelukt. Je ziet de recepten van de vorige keer.';
 const UNREADABLE_FILE = 'Dit bestand kan niet worden gelezen.';
 
@@ -88,13 +108,27 @@ export const categoryCount = derived(recipes, $recipes => {
 });
 
 let loading: Promise<void> | null = null;
+let loadAgain = false;
+/** Telt geslaagde wijzigingen, zodat ophalen weet of de server-stand intussen veranderd is. */
+let writes = 0;
 
 /**
  * Toont eerst de lokale kopie en haalt daarna de laatste stand van de server.
  * Zonder verbinding blijft de lokale kopie gewoon staan.
+ * Wordt dit aangeroepen terwijl er al wordt opgehaald (bijvoorbeeld na overstappen naar
+ * een ander receptenboek), dan wordt daarna nog een keer opgehaald.
  */
 export function loadRecipes(): Promise<void> {
-    loading ??= doLoad().finally(() => {
+    if (loading) {
+        loadAgain = true;
+        return loading;
+    }
+    loading = (async () => {
+        do {
+            loadAgain = false;
+            await doLoad();
+        } while (loadAgain);
+    })().finally(() => {
         loading = null;
     });
     return loading;
@@ -114,7 +148,15 @@ async function doLoad(): Promise<void> {
     if (!getBookCode()) return;
 
     try {
-        recipes.set(await syncFromServer());
+        // Is er tijdens het ophalen iets bewaard, dan is de opgehaalde stand al oud: opnieuw.
+        for (let attempt = 0; attempt < 3; attempt++) {
+            const before = writes;
+            const result = await syncFromServer();
+            if (writes === before) {
+                recipes.set(result);
+                break;
+            }
+        }
     } catch (e) {
         if (!(e instanceof OfflineError)) error.set(LOAD_FAILED);
     }
@@ -185,6 +227,7 @@ async function createRecipe(data: NewRecipe, createdAt: Date | undefined, call: 
     const id = crypto.randomUUID();
     const photoIds = await ensurePhotos(id, data.photos, undefined, call);
     const remote = await call(() => api.saveRecipe(id, toInput(data, photoIds, createdAt)));
+    writes++;
 
     const saved = toLocal(remote, [...data.photos]);
     await db.putRecipe(saved);
@@ -210,6 +253,7 @@ export async function updateRecipe(id: string, updates: Partial<Recipe>): Promis
 
     const photoIds = await ensurePhotos(id, merged.photos, existing, direct);
     const remote = await api.saveRecipe(id, toInput(merged, photoIds));
+    writes++;
 
     const saved = toLocal(remote, [...merged.photos]);
     await db.putRecipe(saved);
@@ -219,6 +263,7 @@ export async function updateRecipe(id: string, updates: Partial<Recipe>): Promis
 // Delete a recipe
 export async function deleteRecipe(id: string): Promise<void> {
     await api.removeRecipe(id);
+    writes++;
     await db.deleteRecipe(id);
     recipes.update(r => r.filter(recipe => recipe.id !== id));
 }
@@ -226,12 +271,16 @@ export async function deleteRecipe(id: string): Promise<void> {
 // Toggle favorite
 export async function toggleFavorite(id: string): Promise<void> {
     const existing = await findRecipe(id);
-    const remote = await api.saveRecipe(
-        id,
-        toInput({ ...existing, isFavorite: !existing.isFavorite }, existing.photoIds)
-    );
+    const remote = await api.setFavorite(id, !existing.isFavorite);
+    writes++;
 
-    const saved = toLocal(remote, existing.photos);
+    // De server geeft het hele recept terug; foto's die hier al zijn, worden hergebruikt.
+    const photos = remote.photoIds.map((photoId) => existing.photos[existing.photoIds.indexOf(photoId)]);
+    if (photos.some((photo) => photo === undefined)) {
+        await loadRecipes();
+        return;
+    }
+    const saved = toLocal(remote, photos);
     await db.putRecipe(saved);
     recipes.update(r => r.map(recipe => recipe.id === id ? saved : recipe));
 }
@@ -245,16 +294,14 @@ export async function tryToggleFavorite(id: string): Promise<void> {
         await toggleFavorite(id);
     } catch (e) {
         console.error(e);
-        notice.set(SAVE_FAILED);
+        notice.set(saveErrorMessage(e));
     }
 }
 
 /** Verwijdert alle recepten uit het receptenboek, op alle gekoppelde apparaten. */
-export async function deleteAllRecipes(call: ApiCall = direct): Promise<void> {
-    const remote = await call(() => api.listRecipes());
-    for (const recipe of remote) {
-        await call(() => api.removeRecipe(recipe.id));
-    }
+export async function deleteAllRecipes(): Promise<void> {
+    await api.removeAllRecipes();
+    writes++;
     await db.clearRecipes();
     recipes.set([]);
 }
@@ -370,6 +417,7 @@ export async function importRecipes(
 
     for (const id of oldIds) {
         await call(() => api.removeRecipe(id));
+        writes++;
         await db.deleteRecipe(id);
         recipes.update(r => r.filter(recipe => recipe.id !== id));
     }

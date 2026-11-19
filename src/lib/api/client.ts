@@ -7,6 +7,9 @@ import {
 	type RemoteRecipe
 } from './types';
 
+/** Na zoveel tijd zonder antwoord geldt de server als niet bereikbaar. Foto's kunnen groot zijn. */
+const REQUEST_TIMEOUT_MS = 30_000;
+
 /** De server is niet bereikbaar (geen internet, of wifi zonder verbinding). */
 export class OfflineError extends Error {
 	constructor() {
@@ -45,7 +48,9 @@ async function request(path: string, options: RequestOptions = {}): Promise<Resp
 		response = await fetch(path, {
 			method: options.method ?? 'GET',
 			headers,
-			body: options.body
+			body: options.body,
+			// Wifi zonder verbinding kan een aanvraag eindeloos laten hangen.
+			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
 		});
 	} catch {
 		throw new OfflineError();
@@ -89,6 +94,21 @@ export async function saveRecipe(id: string, input: RecipeInput): Promise<Remote
 	const response = await request(`/api/recipes/${id}`, {
 		method: 'PUT',
 		body: JSON.stringify(input),
+		contentType: 'application/json'
+	});
+	return (await response.json()) as RemoteRecipe;
+}
+
+/** Alle recepten van het receptenboek in één keer verwijderen. */
+export async function removeAllRecipes(): Promise<void> {
+	await request('/api/recipes', { method: 'DELETE' });
+}
+
+/** Alleen de favoriet wijzigen; de rest van het recept blijft zoals het op de server staat. */
+export async function setFavorite(id: string, isFavorite: boolean): Promise<RemoteRecipe> {
+	const response = await request(`/api/recipes/${id}/favorite`, {
+		method: 'PUT',
+		body: JSON.stringify({ isFavorite }),
 		contentType: 'application/json'
 	});
 	return (await response.json()) as RemoteRecipe;

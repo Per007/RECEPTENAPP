@@ -8,7 +8,9 @@ import {
 	listRecipes,
 	removeRecipe,
 	saveRecipe,
-	uploadPhoto
+	uploadPhoto,
+	removeAllRecipes,
+	setFavorite
 } from './client';
 import { setBookCode, clearBookCode } from '$lib/stores/book';
 import type { RecipeInput } from './types';
@@ -137,5 +139,35 @@ describe('api client', () => {
 		const dataUrl = await downloadPhoto('p1');
 		const decoded = Uint8Array.from(atob(dataUrl.split(',')[1]), (c) => c.charCodeAt(0));
 		expect(decoded).toEqual(bytes);
+	});
+
+	it('removeAllRecipes stuurt één DELETE voor het hele receptenboek', async () => {
+		fetchMock.mockResolvedValue(reply(204));
+		await removeAllRecipes();
+		const { url, init, headers } = lastCall();
+		expect(url).toBe('/api/recipes');
+		expect(init.method).toBe('DELETE');
+		expect(headers.get('X-Receptenboek-Code')).toBe('KOEK4827TAART');
+	});
+
+	it('setFavorite stuurt alleen de favoriet', async () => {
+		const saved = { ...input, isFavorite: true, id: 'r1', createdAt: 'a', updatedAt: 'b' };
+		fetchMock.mockResolvedValue(reply(200, saved));
+		expect(await setFavorite('r1', true)).toEqual(saved);
+		const { url, init } = lastCall();
+		expect(url).toBe('/api/recipes/r1/favorite');
+		expect(init.method).toBe('PUT');
+		expect(JSON.parse(init.body as string)).toEqual({ isFavorite: true });
+	});
+
+	it('geeft elke aanvraag een tijdslimiet mee', async () => {
+		fetchMock.mockResolvedValue(reply(200, { recipes: [] }));
+		await listRecipes();
+		expect(lastCall().init.signal).toBeInstanceOf(AbortSignal);
+	});
+
+	it('geeft OfflineError als de server te lang niet antwoordt', async () => {
+		fetchMock.mockRejectedValue(new DOMException('timed out', 'TimeoutError'));
+		await expect(listRecipes()).rejects.toBeInstanceOf(OfflineError);
 	});
 });

@@ -10,7 +10,9 @@ vi.mock('$lib/api/client', async (importOriginal) => {
 		saveRecipe: vi.fn(),
 		removeRecipe: vi.fn(),
 		uploadPhoto: vi.fn(),
-		downloadPhoto: vi.fn()
+		downloadPhoto: vi.fn(),
+		setFavorite: vi.fn(),
+		removeAllRecipes: vi.fn()
 	};
 });
 
@@ -34,6 +36,11 @@ import {
 	deleteAllRecipes,
 	SAVE_FAILED,
 	ImportError,
+	saveErrorMessage,
+	PHOTOS_TOO_MANY,
+	BOOK_FULL,
+	CODE_UNKNOWN,
+	RECIPE_GONE,
 	type NewRecipe
 } from './recipes';
 
@@ -68,6 +75,11 @@ beforeEach(async () => {
 	mocked.uploadPhoto.mockImplementation(async () => void calls.push('upload'));
 	mocked.removeRecipe.mockImplementation(async () => void calls.push('remove'));
 	mocked.downloadPhoto.mockImplementation(async (id) => `data:${id}`);
+	mocked.removeAllRecipes.mockResolvedValue();
+	mocked.setFavorite.mockImplementation(async (id, isFavorite) => {
+		const local = await db.getRecipe(id);
+		return serverSave(id, { ...local!, isFavorite } as never);
+	});
 
 	db.resetDB();
 	await new Promise<void>((resolve) => {
@@ -155,25 +167,45 @@ describe('updateRecipe', () => {
 });
 
 describe('toggleFavorite', () => {
-	it('bewaart de omgekeerde favoriet zonder fotos te uploaden', async () => {
+	it('stuurt alleen de omgekeerde favoriet en neemt de stand van de server over', async () => {
 		const original = await addRecipe({ ...soep, photos: ['data:a'] });
 		vi.clearAllMocks();
+		// Een ander apparaat heeft intussen de titel gewijzigd.
+		mocked.setFavorite.mockImplementation(async (id, isFavorite) =>
+			serverSave(id, { ...soep, title: 'Snert', isFavorite, photoIds: original.photoIds } as never)
+		);
 
 		await toggleFavorite(original.id);
 
+		expect(mocked.setFavorite).toHaveBeenCalledWith(original.id, true);
+		expect(mocked.saveRecipe).not.toHaveBeenCalled();
 		expect(mocked.uploadPhoto).not.toHaveBeenCalled();
-		const input = mocked.saveRecipe.mock.calls[0][1];
-		expect(input.isFavorite).toBe(true);
-		expect(input.photoIds).toEqual(original.photoIds);
-		expect((await db.getRecipe(original.id))?.isFavorite).toBe(true);
+		const local = await db.getRecipe(original.id);
+		expect(local?.isFavorite).toBe(true);
+		expect(local?.title).toBe('Snert');
+		expect(local?.photos).toEqual(['data:a']);
 		expect(get(recipes)[0].isFavorite).toBe(true);
+	});
+});
+
+describe('saveErrorMessage', () => {
+	it.each([
+		['geen verbinding', new OfflineError(), SAVE_FAILED],
+		['te veel fotos', new ApiError(400, 'too_many_photos'), PHOTOS_TOO_MANY],
+		['te grote foto', new ApiError(413, 'photo_too_large'), PHOTOS_TOO_MANY],
+		['receptenboek vol', new ApiError(413, 'book_full'), BOOK_FULL],
+		['onbekende code', new ApiError(401, 'unknown_code'), CODE_UNKNOWN],
+		['recept bestaat niet meer', new ApiError(404, 'not_found'), RECIPE_GONE],
+		['iets anders', new Error('?'), SAVE_FAILED]
+	])('geeft een passende melding bij %s', (_name, error, expected) => {
+		expect(saveErrorMessage(error)).toBe(expected);
 	});
 });
 
 describe('tryToggleFavorite', () => {
 	it('toont de bewaar-melding als favoriet maken mislukt, zonder fout te gooien', async () => {
 		const original = await addRecipe(soep);
-		mocked.saveRecipe.mockRejectedValue(new OfflineError());
+		mocked.setFavorite.mockRejectedValue(new OfflineError());
 		notice.set(null);
 		await tryToggleFavorite(original.id);
 		expect(get(notice)).toBe(SAVE_FAILED);
@@ -364,13 +396,49 @@ describe('importRecipes', () => {
 });
 
 describe('deleteAllRecipes', () => {
-	it('verwijdert alle recepten op de server en lokaal', async () => {
-		const a = await addRecipe(soep);
-		mocked.listRecipes.mockResolvedValue([serverSave(a.id, { ...soep, photoIds: [] } as never)]);
+	it('verwijdert alle recepten in één aanvraag op de server en daarna lokaal', async () => {
+		await addRecipe(soep);
+		await addRecipe(soep);
 		await deleteAllRecipes();
-		expect(mocked.removeRecipe).toHaveBeenCalledWith(a.id);
+		expect(mocked.removeAllRecipes).toHaveBeenCalledTimes(1);
+		expect(mocked.removeRecipe).not.toHaveBeenCalled();
 		expect(await db.getAllRecipes()).toEqual([]);
 		expect(get(recipes)).toEqual([]);
+	});
+
+	it('laat lokaal alles staan als de server faalt', async () => {
+		await addRecipe(soep);
+		mocked.removeAllRecipes.mockRejectedValue(new OfflineError());
+		await expect(deleteAllRecipes()).rejects.toBeInstanceOf(OfflineError);
+		expect(await db.getAllRecipes()).toHaveLength(1);
+	});
+});
+
+describe('ophalen terwijl er bewaard wordt', () => {
+	it('verliest geen recept dat tijdens het ophalen is toegevoegd', async () => {
+		const server: RemoteRecipe[] = [];
+		mocked.saveRecipe.mockImplementation(async (id, input) => {
+			const saved = serverSave(id, input);
+			server.push(saved);
+			return saved;
+		});
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => (release = resolve));
+		mocked.listRecipes.mockImplementation(async () => {
+			const snapshot = [...server]; // de server-stand op het moment van vragen
+			await gate;
+			return snapshot;
+		});
+
+		const loading = loadRecipes();
+		await new Promise((r) => setTimeout(r, 0));
+		const added = await addRecipe(soep);
+		release();
+		mocked.listRecipes.mockImplementation(async () => [...server]);
+		await loading;
+
+		expect(get(recipes).map((r) => r.id)).toContain(added.id);
+		expect((await db.getAllRecipes()).map((r) => r.id)).toContain(added.id);
 	});
 });
 

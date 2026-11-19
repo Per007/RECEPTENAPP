@@ -7,7 +7,7 @@
   import {
     addRecipe,
     tryToggleFavorite,
-    SAVE_FAILED,
+    saveErrorMessage,
     deleteRecipe,
     recipes,
   } from "$lib/stores/recipes";
@@ -187,7 +187,7 @@
       goto(`${base}/recepten/${savedRecipe.id}`);
     } catch (error) {
       console.error("Error saving shared recipe:", error);
-      alert(SAVE_FAILED);
+      alert(saveErrorMessage(error));
     } finally {
       isSaving = false;
     }

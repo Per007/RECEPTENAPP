@@ -2,9 +2,10 @@
   import { goto } from "$app/navigation";
   import { base } from "$app/paths";
   import { CATEGORIES, type RecipeCategory } from "$lib/db/types";
-  import { addRecipe, SAVE_FAILED } from "$lib/stores/recipes";
+  import { addRecipe, saveErrorMessage } from "$lib/stores/recipes";
   import Button from "$lib/components/Button.svelte";
   import PhotoCapture from "$lib/components/PhotoCapture.svelte";
+  import { MAX_PHOTOS_PER_RECIPE } from "$lib/api/types";
 
   let title = $state("");
   let category = $state<RecipeCategory>("hoofdgerecht");
@@ -91,7 +92,7 @@
       console.log("Recipe added successfully:", recipe.id);
       goto(`${base}/recepten/${recipe.id}`);
     } catch (error) {
-      errorMessage = SAVE_FAILED;
+      errorMessage = saveErrorMessage(error);
       console.error(error);
     } finally {
       isSubmitting = false;
@@ -150,7 +151,11 @@
 
         <div class="form-group">
           <label>Foto's</label>
-          <PhotoCapture onCapture={handlePhotoCapture} />
+          {#if photos.length < MAX_PHOTOS_PER_RECIPE}
+            <PhotoCapture onCapture={handlePhotoCapture} />
+          {:else}
+            <p class="photo-limit">Maximaal {MAX_PHOTOS_PER_RECIPE} foto's per recept. Verwijder er een om een nieuwe toe te voegen.</p>
+          {/if}
 
           {#if photos.length > 0}
             <div class="photo-grid">

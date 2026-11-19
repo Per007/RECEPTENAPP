@@ -118,13 +118,8 @@ export async function saveRecipe(
 	if (!fields.photoIds.every((id) => uploadedIds.has(id))) return fail(400, 'invalid_recipe');
 
 	const previous = existing.results[0] as RecipeRow | undefined;
-	const now = new Date();
-	// updatedAt moet bij elke wijziging veranderen; daar vergelijken de apparaten op.
-	const updatedAt =
-		previous && now.toISOString() <= previous.updated_at
-			? new Date(Date.parse(previous.updated_at) + 1).toISOString()
-			: now.toISOString();
-	const createdAt = previous?.created_at ?? parsed.createdAt ?? now.toISOString();
+	const updatedAt = nextUpdatedAt(previous?.updated_at);
+	const createdAt = previous?.created_at ?? parsed.createdAt ?? updatedAt;
 
 	const placeholders = fields.photoIds.map(() => '?').join(', ');
 	const dropUnused = fields.photoIds.length
@@ -146,6 +141,51 @@ export async function saveRecipe(
 	]);
 
 	return json(toRemote({ id: recipeId, data, created_at: createdAt, updated_at: updatedAt }));
+}
+
+/** updatedAt moet bij elke wijziging veranderen; daar vergelijken de apparaten op. */
+function nextUpdatedAt(previous?: string): string {
+	const now = new Date().toISOString();
+	return previous && now <= previous ? new Date(Date.parse(previous) + 1).toISOString() : now;
+}
+
+/** Alleen de favoriet wijzigen, zodat een oude kopie op een apparaat niets anders terugzet. */
+export async function setFavorite(
+	request: Request,
+	env: Env,
+	bookId: string,
+	recipeId: string
+): Promise<Response> {
+	let body: unknown;
+	try {
+		body = await request.json();
+	} catch {
+		return fail(400, 'invalid_recipe');
+	}
+	const isFavorite = (body as { isFavorite?: unknown } | null)?.isFavorite;
+	if (typeof isFavorite !== 'boolean') return fail(400, 'invalid_recipe');
+
+	const row = await env.DB.prepare(
+		'SELECT id, data, created_at, updated_at FROM recipes WHERE book_id = ? AND id = ?'
+	)
+		.bind(bookId, recipeId)
+		.first<RecipeRow>();
+	if (!row) return fail(404, 'not_found');
+
+	const data = JSON.stringify({ ...(JSON.parse(row.data) as StoredFields), isFavorite });
+	const updatedAt = nextUpdatedAt(row.updated_at);
+	await env.DB.prepare('UPDATE recipes SET data = ?, updated_at = ? WHERE book_id = ? AND id = ?')
+		.bind(data, updatedAt, bookId, recipeId)
+		.run();
+	return json(toRemote({ ...row, data, updated_at: updatedAt }));
+}
+
+export async function deleteAllRecipes(env: Env, bookId: string): Promise<Response> {
+	await env.DB.batch([
+		env.DB.prepare('DELETE FROM recipes WHERE book_id = ?').bind(bookId),
+		env.DB.prepare('DELETE FROM photos WHERE book_id = ?').bind(bookId)
+	]);
+	return new Response(null, { status: 204 });
 }
 
 export async function deleteRecipe(env: Env, bookId: string, recipeId: string): Promise<Response> {
