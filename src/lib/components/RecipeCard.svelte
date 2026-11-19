@@ -239,6 +239,11 @@
     padding: var(--space-sm) var(--space-md) var(--space-md);
   }
 
+  /* Op kleine kaarten toont de volle ster al dat het een favoriet is */
+  .compact .favorite-label {
+    display: none;
+  }
+
   .compact .card-title {
     font-size: var(--font-size-base);
     font-family: var(--font-family);
